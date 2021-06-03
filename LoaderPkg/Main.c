@@ -6,6 +6,7 @@
 #include <Protocol/SimpleFileSystem.h>
 #include <Protocol/DiskIo2.h>
 #include <Protocol/BlockIo.h>
+#include <Guid/FileInfo.h>
 
 typedef struct
 {
@@ -18,6 +19,10 @@ typedef struct
 } MemoryMap;
 
 // 
+// definition
+//
+#define     KERNEL_BASE_ADDRESS    ((EFI_PHYSICAL_ADDRESS)0x100000)
+// 
 // static variables
 //
 CHAR8 memmap_buffer[1024 * 4 * 4];    // pagesize 4KiB, 16KiB buffer
@@ -28,11 +33,12 @@ CHAR8 memmap_buffer[1024 * 4 * 4];    // pagesize 4KiB, 16KiB buffer
 static EFI_STATUS GetMemoryMap( MemoryMap* map );
 static EFI_STATUS SaveMemoryMap( MemoryMap* map, EFI_FILE_PROTOCOL* file );
 static const CHAR16* GetMemoryTypeUnicode( EFI_MEMORY_TYPE type );
-EFI_STATUS OpenRootDir( EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root );
+static EFI_STATUS OpenRootDir( EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root );
+static EFI_PHYSICAL_ADDRESS ReadKernel( EFI_FILE_PROTOCOL* root_dir );
+static void StopBootServices( EFI_HANDLE image_handle, MemoryMap memmap );
 
 EFI_STATUS EFIAPI UefiMain( EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table )
 {
-
     MemoryMap memmap = {
         sizeof(memmap_buffer),
         memmap_buffer,
@@ -47,6 +53,14 @@ EFI_STATUS EFIAPI UefiMain( EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_ta
     root_dir->Open( root_dir, &memmap_file, L"\\memmap", EFI_FILE_MODE_READ | EFI_FILE_MODE_WRITE | EFI_FILE_MODE_CREATE, 0 );
     SaveMemoryMap( &memmap, memmap_file );
     memmap_file->Close( memmap_file );
+
+    EFI_PHYSICAL_ADDRESS kernel_base_addr = ReadKernel( root_dir );
+    StopBootServices( image_handle, memmap );
+
+    UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
+    typedef void EntryPointType( void );
+    EntryPointType* entry_point = (EntryPointType*)entry_addr;
+    entry_point();
 
     while( 1 );
     return EFI_SUCCESS;
@@ -125,7 +139,7 @@ static const CHAR16* GetMemoryTypeUnicode( EFI_MEMORY_TYPE type )
     }
 }
 
-EFI_STATUS OpenRootDir( EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root )
+static EFI_STATUS OpenRootDir( EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root )
 {
     EFI_LOADED_IMAGE_PROTOCOL* loaded_image;
     EFI_SIMPLE_FILE_SYSTEM_PROTOCOL* fs;
@@ -151,4 +165,56 @@ EFI_STATUS OpenRootDir( EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root )
     fs->OpenVolume( fs, root );
 
     return EFI_SUCCESS;
+}
+
+static EFI_PHYSICAL_ADDRESS ReadKernel( EFI_FILE_PROTOCOL* root_dir )
+{
+    EFI_FILE_PROTOCOL* kernel_file;
+    root_dir->Open( root_dir, &kernel_file, L"\\kernel.elf",
+                    EFI_FILE_MODE_READ, 0 );
+    
+    UINTN file_info_size = sizeof(EFI_FILE_INFO) + sizeof(CHAR16) * 12;
+    UINT8 file_info_buffer[file_info_size];
+    kernel_file->GetInfo(
+        kernel_file, 
+        &gEfiFileInfoGuid,
+        &file_info_size, 
+        file_info_buffer
+    );
+    
+    EFI_FILE_INFO* file_info = (EFI_FILE_INFO*)file_info_buffer;
+    UINTN kernel_file_size = file_info->FileSize;
+
+    EFI_PHYSICAL_ADDRESS kernel_base_addr = KERNEL_BASE_ADDRESS;
+    gBS->AllocatePages(
+        AllocateAddress, 
+        EfiLoaderData,
+        (kernel_file_size + 0xFFF) / 0x1000, 
+        &kernel_base_addr
+    );
+
+    kernel_file->Read( kernel_file, &kernel_file_size, (VOID*)kernel_base_addr );
+    Print( L"Kernel: 0x%0lx (%lu bytes)\n", kernel_base_addr, kernel_file_size );
+
+    return kernel_base_addr;
+}
+
+static void StopBootServices( EFI_HANDLE image_handle, MemoryMap memmap )
+{
+    EFI_STATUS status;
+    status = gBS->ExitBootServices( image_handle, memmap.map_key );
+    
+    if( EFI_ERROR(status) ){
+        status = GetMemoryMap( &memmap );
+        if( EFI_ERROR(status) ){
+            Print( L"failed to get memory map: %r\n", status );
+            while( 1 );
+        }
+
+        status = gBS->ExitBootServices( image_handle, memmap.map_key );
+        if( EFI_ERROR(status) ){
+            Print( L"Could not exit boot service: %r\n", status );
+            while( 1 );
+        }
+    }
 }

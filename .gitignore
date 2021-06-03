@@ -1,2 +1,4 @@
 devenv
 devenv_src
+*.o
+*.elf
