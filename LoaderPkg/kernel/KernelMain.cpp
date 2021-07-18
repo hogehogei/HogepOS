@@ -4,17 +4,22 @@
 #include "Main.h"
 #include "PixelWriter.hpp"
 #include "Font.hpp"
+#include "Console.hpp"
 
 // 
 // static variables
 //
-char sPixelWriterBuf[sizeof(RGB8BitPerColorPixelWriter)];
-IPixelWriter* sPixelWriter;
+char s_PixelWriterBuf[sizeof(RGB8BitPerColorPixelWriter)];
+IPixelWriter* s_PixelWriter;
+
+char s_ConsoleBuf[sizeof(Console)];
+Console* s_Console;
 
 //
 // static functions
 //
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config );
+static int Printk( const char* format, ... );
 
 void* operator new( size_t size, void* buf )
 {
@@ -26,17 +31,12 @@ void operator delete( void* buf ) noexcept
 
 extern "C" void KernelMain( const FrameBufferConfig* config )
 {
-    char stringbuf[128];
-    sPixelWriter = GetPixelWriter( *config );
+    s_PixelWriter = GetPixelWriter( *config );
+    s_Console = new(s_ConsoleBuf) Console( s_PixelWriter, {0, 0, 0}, {255, 255, 255} );
 
-    for( int y = 0; y < 100; ++y ){
-        for( int x = 0; x < 255; ++x ){
-            sPixelWriter->Write( x, y, {255, 255, 255} );
-        }
+    for( int i = 0; i < 27; ++i ){
+        Printk( "printk: %d\n", i );
     }
-
-    sprintf( stringbuf, "Hello world! %d", 999 );
-    WriteString( *sPixelWriter, 10, 0, stringbuf, {0, 0, 0} );
 
     while(1){
         __asm__ ("hlt");
@@ -50,14 +50,28 @@ static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config )
     switch( config.PixelFormat )
     {
     case kPixelRGBReserved8BitPerColor:
-        writer = new (sPixelWriterBuf) RGB8BitPerColorPixelWriter(config);
+        writer = new (s_PixelWriterBuf) RGB8BitPerColorPixelWriter(config);
         break;
     case kPixelBGRReserved8BitPerColor:
-        writer = new (sPixelWriterBuf) BGR8BitPerColorPixelWriter(config);
+        writer = new (s_PixelWriterBuf) BGR8BitPerColorPixelWriter(config);
         break;
     default:
         break;
     }
 
     return writer;
+}
+
+static int Printk( const char* format, ... )
+{
+    va_list ap;
+    int result;
+    char s[1024];
+
+    va_start( ap, format );
+    result = vsprintf( s, format, ap );
+    va_end( ap );
+
+    s_Console->PutString( s );
+    return result;
 }
