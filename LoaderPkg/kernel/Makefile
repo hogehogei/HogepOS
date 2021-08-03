@@ -1,9 +1,11 @@
 TARGET	=	kernel.elf
 CPPSRCS	=	$(wildcard *.cpp)
 CSRCS   =   $(wildcard *.c)
+ASMSRCS =   $(wildcard *.asm)
 CPPOBJS	=	$(notdir $(CPPSRCS:.cpp=.o))
 COBJS   =   $(notdir $(CSRCS:.c=.o))
 COBJS   +=   hankaku_font.o
+ASMOBJS =   $(notdir $(ASMSRCS:.asm=.o))
 INCDIR	=	"../"
 
 CXXFLAGS	+=	-O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone \
@@ -17,8 +19,8 @@ all: $(TARGET)
 clean: 
 	rm -rf *.o && rm $(TARGET)
 
-$(TARGET):	$(COBJS) $(CPPOBJS) Makefile
-	ld.lld $(LDFLAGS) -o $(TARGET) $(CPPOBJS) $(COBJS)
+$(TARGET):	$(COBJS) $(CPPOBJS) $(ASMOBJS) Makefile
+	ld.lld $(LDFLAGS) -o $(TARGET) $(CPPOBJS) $(COBJS) $(ASMOBJS)
 	mv $(TARGET) ../
 
 %.o: %.cpp Makefile
@@ -26,6 +28,12 @@ $(TARGET):	$(COBJS) $(CPPOBJS) Makefile
 
 %.o: %.c Makefile
 	clang $(CPPFLAGS) $(CFLAGS) -I$(INCDIR) -c $<
+
+%.o: %.asm Makefile
+	nasm -f elf64 -o $@ $<
+
+
+
 
 
 
