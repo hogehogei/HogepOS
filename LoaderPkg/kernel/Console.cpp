@@ -13,6 +13,7 @@ Console::Console( IPixelWriter* writer, const PixelColor& fg_color, const PixelC
       m_ConsoleLines()
 {
     m_ConsoleLines.Push( m_Buffer[m_CursorRow] );
+    ClearConsole();
 }
       
 void Console::PutString( const char* s )

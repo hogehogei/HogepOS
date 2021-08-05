@@ -5,6 +5,7 @@
 #include "PixelWriter.hpp"
 #include "Font.hpp"
 #include "Console.hpp"
+#include "PCI.hpp"
 
 // 
 // static variables
@@ -34,8 +35,18 @@ extern "C" void KernelMain( const FrameBufferConfig* config )
     s_PixelWriter = GetPixelWriter( *config );
     s_Console = new(s_ConsoleBuf) Console( s_PixelWriter, {0, 0, 0}, {255, 255, 255} );
 
-    for( int i = 0; i < 27; ++i ){
-        Printk( "printk: %d\n", i );
+    pci::Manager().Instance().ScanAllBus();
+    const auto& devices = pci::Manager().Instance().GetDevices();
+    int device_num = pci::Manager().Instance().GetDeviceNum();
+
+    Printk( "NumDevice : %d\n", device_num );
+    for( int i = 0; i < device_num; ++i ){
+        const auto& dev = devices[i];
+        auto vendor_id  = pci::Manager::Instance().ReadVendorID( dev.Bus, dev.Device, dev.Function );
+        auto class_code = pci::Manager::Instance().ReadClassCode( dev.Bus, dev.Device, dev.Function );
+        Printk( "%d.%d.%d: vend %04x, class %08x, head %02x\n",
+                dev.Bus, dev.Device, dev.Function,
+                vendor_id, class_code, dev.HeaderType );
     }
 
     while(1){
