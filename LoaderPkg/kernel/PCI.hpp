@@ -9,13 +9,7 @@
 
 namespace pci
 {
-    struct Device
-    {
-        uint8_t Bus;
-        uint8_t Device;
-        uint8_t Function;
-        uint8_t HeaderType;
-    };
+    static constexpr int sk_DeviceMax = 32;         //! PCIの認識できる最大デバイス数
 
     class ClassCode
     {
@@ -23,22 +17,42 @@ namespace pci
         ClassCode( uint32_t code )
             : m_Code( code )
         {}
+        ClassCode() 
+            : m_Code( 0 )
+        {}
+
+        bool Match( uint8_t base, uint8_t sub, uint8_t interface ) const
+        {
+            return (base == Base()) && (sub == Sub()) && (interface == Interface());
+        }
         
-        uint8_t Base() const { return (m_Code >> 24) & 0x0Fu; }
-        uint8_t Sub() const { return (m_Code >> 16) & 0x0Fu; }
+        uint8_t Base() const { return (m_Code >> 24) & 0xFFu; }
+        uint8_t Sub() const { return (m_Code >> 16) & 0xFFu; }
+        uint8_t Interface() const { return (m_Code >> 8) & 0xFFu; }
 
     private:
         uint32_t m_Code;
     };
 
+    struct Device
+    {
+        uint8_t Bus;
+        uint8_t Device;
+        uint8_t Function;
+        uint8_t HeaderType;
+        ClassCode ClassCode;
+    };
+
+
+
     /**
      * @brief   PCIマネージャ
      *          PCIコンフィギュレーション空間への読み書きを管理する
      */
-    class Manager
+    class ConfigurationArea
     {
     public:
-        static constexpr int sk_DeviceMax = 32;         //! PCIの認識できる最大デバイス数
+
         using DeviceArray = Device[sk_DeviceMax];
 
     public:
@@ -47,15 +61,19 @@ namespace pci
         //! CONFIG_DATA レジスタのポートアドレス
         static constexpr uint16_t sk_ConfigData_Addr    = 0x0CFC;
 
+        ConfigurationArea();
+        ~ConfigurationArea();
+
         /**
          * @brief インスタンス取得
          */
-        static Manager& Instance();
+        static ConfigurationArea& Instance();
 
         /**
          * @brief CONFIG ADDRESS 用の32ビット整数を生成する
          */
         uint32_t MakeAddress( uint8_t bus, uint8_t device, uint8_t function, uint8_t reg_addr ) const;
+        uint32_t MakeAddress( const Device& device, uint8_t reg_addr ) const;
         /**
          * @brief CONFIG_ADDRESS へアドレス書き込み
          */
@@ -72,6 +90,7 @@ namespace pci
          * @brief ベンダーID読み取り
          */
         uint16_t ReadVendorID( uint8_t bus, uint8_t device, uint8_t function ) const;
+        uint16_t ReadVendorID( const Device& device ) const;
         /**
          * @brief ヘッダータイプ読み取り
          */
@@ -81,9 +100,18 @@ namespace pci
          */
         uint32_t ReadBusNumbers( uint8_t bus, uint8_t device, uint8_t function ) const;
         /**
-         * @brief ヘッダータイプ読み取り
+         * @brief クラスコード読み取り
          */
         ClassCode ReadClassCode( uint8_t bus, uint8_t device, uint8_t function ) const;
+        /**
+         * @brief Capabilities Pointer読み取り
+         */
+        uint8_t CapablitiesPointer( uint8_t bus, uint8_t device, uint8_t funciton ) const;
+        /**
+         * @brief Read BAR 64bit
+         */
+        uint64_t ReadBAR( uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_num ) const;
+
         /**
          * @brief シングルファンクションデバイスか判定
          */

@@ -22,13 +22,21 @@ namespace pci
 // funcion definitions
 // 
 
-Manager& Manager::Instance()
+ConfigurationArea::ConfigurationArea()
+    : m_Devices {},
+      m_NumDevice( 0 )
+{}
+
+ConfigurationArea::~ConfigurationArea()
+{}
+
+ConfigurationArea& ConfigurationArea::Instance()
 {
-    static Manager s_Instance;
+    static ConfigurationArea s_Instance;
     return s_Instance;
 }
 
-uint32_t Manager::MakeAddress( uint8_t bus, uint8_t device, uint8_t function, uint8_t reg_addr ) const
+uint32_t ConfigurationArea::MakeAddress( uint8_t bus, uint8_t device, uint8_t function, uint8_t reg_addr ) const
 {
     auto shl = []( uint32_t x, unsigned int bits ){
         return x << bits;
@@ -41,51 +49,73 @@ uint32_t Manager::MakeAddress( uint8_t bus, uint8_t device, uint8_t function, ui
         |     (reg_addr & 0xFCu); 
 }
 
-void Manager::WriteAddress( uint32_t addr ) const
+uint32_t ConfigurationArea::MakeAddress( const Device& device, uint8_t reg_addr ) const
+{
+    return MakeAddress( device.Bus, device.Device, device.Function, reg_addr );
+}
+
+void ConfigurationArea::WriteAddress( uint32_t addr ) const
 {
     IoOut32( sk_ConfigAddress_Addr, addr );
 }
 
-void Manager::WriteData( uint32_t data )
+void ConfigurationArea::WriteData( uint32_t data )
 {
     IoOut32( sk_ConfigData_Addr, data );
 }
 
-uint32_t Manager::ReadData() const
+uint32_t ConfigurationArea::ReadData() const
 {
     return IoIn32( sk_ConfigData_Addr );
 }
 
-uint16_t Manager::ReadVendorID( uint8_t bus, uint8_t device, uint8_t function ) const
+uint16_t ConfigurationArea::ReadVendorID( uint8_t bus, uint8_t device, uint8_t function ) const
 {
     WriteAddress( MakeAddress(bus, device, function, 0x00) );
     return ReadData() & 0xFFFFu;
 }
 
-uint8_t Manager::ReadHeaderType( uint8_t bus, uint8_t device, uint8_t function ) const
+uint16_t ConfigurationArea::ReadVendorID( const Device& device ) const
+{
+    return ReadVendorID( device.Bus, device.Device, device.Function );
+}
+
+uint8_t ConfigurationArea::ReadHeaderType( uint8_t bus, uint8_t device, uint8_t function ) const
 {
     WriteAddress( MakeAddress(bus, device, function, 0x0C) );
     return (ReadData() >> 16) & 0xFFu;
 }
 
-uint32_t Manager::ReadBusNumbers( uint8_t bus, uint8_t device, uint8_t function ) const
+uint32_t ConfigurationArea::ReadBusNumbers( uint8_t bus, uint8_t device, uint8_t function ) const
 {
     WriteAddress( MakeAddress(bus, device, function, 0x18) );
     return ReadData();
 }
 
-ClassCode Manager::ReadClassCode( uint8_t bus, uint8_t device, uint8_t function ) const
+ClassCode ConfigurationArea::ReadClassCode( uint8_t bus, uint8_t device, uint8_t function ) const
 {
     WriteAddress( MakeAddress(bus, device, function, 0x08) );
     return ClassCode( ReadData() );
 }
 
-bool Manager::IsSingleFunctionDevice( uint8_t header_type ) const
+uint8_t ConfigurationArea::CapablitiesPointer( uint8_t bus, uint8_t device, uint8_t function ) const
+{
+    WriteAddress( MakeAddress(bus, device, function, 0x34) );
+    return ReadData() & 0xFFu;
+}
+
+uint64_t ConfigurationArea::ReadBAR( uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_num ) const
+{
+    WriteAddress( MakeAddress(bus, device, function, 0x10 + (bar_num*0x04)) );
+    return ReadData();
+}
+
+bool ConfigurationArea::IsSingleFunctionDevice( uint8_t header_type ) const
 {
     return (header_type & 0x80u) == 0;
 }
 
-Result Manager::ScanAllBus()
+Result ConfigurationArea::ScanAllBus()
 {
     m_NumDevice = 0;
 
@@ -108,17 +138,17 @@ Result Manager::ScanAllBus()
     return Result::Success;
 }
 
-const Manager::DeviceArray& Manager::GetDevices() const
+const ConfigurationArea::DeviceArray& ConfigurationArea::GetDevices() const
 {
     return m_Devices;
 }
 
-int Manager::GetDeviceNum() const
+int ConfigurationArea::GetDeviceNum() const
 {
     return m_NumDevice;
 }
 
-Result Manager::ScanBus( uint8_t bus )
+Result ConfigurationArea::ScanBus( uint8_t bus )
 {
     for( uint8_t device = 0; device < 32; ++device ){
         // function id 0 の vendorID が 0xFFFF なら、有効なデバイスが存在しないのでスキップ
@@ -135,7 +165,7 @@ Result Manager::ScanBus( uint8_t bus )
     return Result::Success;
 }
 
-Result Manager::ScanDevice( uint8_t bus, uint8_t device )
+Result ConfigurationArea::ScanDevice( uint8_t bus, uint8_t device )
 {
     for( uint8_t function = 0; function < 8; ++function ){
         if( ReadVendorID( bus, device, function ) == 0xFFFFu ){
@@ -151,7 +181,7 @@ Result Manager::ScanDevice( uint8_t bus, uint8_t device )
     return Result::Success;
 }
 
-Result Manager::ScanFunction( uint8_t bus, uint8_t device, uint8_t function )
+Result ConfigurationArea::ScanFunction( uint8_t bus, uint8_t device, uint8_t function )
 {
     auto header_type = ReadHeaderType( bus, device, function );
     auto err = AddDevice( bus, device, function, header_type );
@@ -170,13 +200,15 @@ Result Manager::ScanFunction( uint8_t bus, uint8_t device, uint8_t function )
     return Result::Success;
 }
 
-Result Manager::AddDevice( uint8_t bus, uint8_t device, uint8_t function, uint8_t header_type )
+Result ConfigurationArea::AddDevice( uint8_t bus, uint8_t device, uint8_t function, uint8_t header_type )
 {
     if( m_NumDevice >= sk_DeviceMax ){
         return Result::Full;
     }
 
-    m_Devices[m_NumDevice] = Device { bus, device, function, header_type };
+    
+    m_Devices[m_NumDevice] = Device { bus, device, function, header_type, 
+                                      ReadClassCode(bus, device, function) };
     ++m_NumDevice;
 
     return Result::Success;
