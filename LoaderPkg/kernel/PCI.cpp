@@ -3,6 +3,7 @@
 //
 #include "PCI.hpp"
 #include "asmfunc.h"
+#include "error.hpp"
 
 namespace pci
 {
@@ -69,6 +70,18 @@ uint32_t ConfigurationArea::ReadData() const
     return IoIn32( sk_ConfigData_Addr );
 }
 
+uint32_t ConfigurationArea::ReadConfReg( const Device& device, uint8_t addr ) const
+{
+    WriteAddress( MakeAddress(device.Bus, device.Device, device.Function, addr) );
+    return ReadData();
+}
+
+void ConfigurationArea::WriteConfReg( const Device& device, uint8_t addr, uint32_t value )
+{
+    WriteAddress( MakeAddress(device.Bus, device.Device, device.Function, addr) );
+    WriteData( value );
+}
+
 uint16_t ConfigurationArea::ReadVendorID( uint8_t bus, uint8_t device, uint8_t function ) const
 {
     WriteAddress( MakeAddress(bus, device, function, 0x00) );
@@ -104,10 +117,31 @@ uint8_t ConfigurationArea::CapablitiesPointer( uint8_t bus, uint8_t device, uint
     return ReadData() & 0xFFu;
 }
 
-uint64_t ConfigurationArea::ReadBAR( uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_num ) const
+WithError<uint64_t> ConfigurationArea::ReadBAR( uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_num ) const
 {
-    WriteAddress( MakeAddress(bus, device, function, 0x10 + (bar_num*0x04)) );
-    return ReadData();
+    if( bar_num >= 6 ){
+        return { 0, MAKE_ERROR(Error::kIndexOutOfRange) };
+    }
+    uint8_t  addr = 0x10 + (bar_num*0x04);
+    uint32_t bar_lower = ReadConfReg( {bus, device, function}, addr );
+
+    // 32bitアドレスかどうか確認
+    if( (bar_lower & 0x06) == 0 ){
+        return { bar_lower, MAKE_ERROR(Error::kSuccess) };
+    }
+
+    // 64bit アドレスなのにBAR5は指定できない
+    if( bar_num >= 5 ){
+        return { 0, MAKE_ERROR(Error::kIndexOutOfRange) };
+    }
+
+    uint64_t bar_upper = ReadConfReg( {bus, device, function}, addr + 4 );
+    return { (bar_upper << 32) | bar_lower, MAKE_ERROR(Error::kSuccess) };
+}
+
+WithError<uint64_t> ConfigurationArea::ReadBAR( const Device& device, uint8_t bar_num ) const
+{
+    return ReadBAR( device.Bus, device.Device, device.Function, bar_num );
 }
 
 bool ConfigurationArea::IsSingleFunctionDevice( uint8_t header_type ) const
@@ -115,7 +149,7 @@ bool ConfigurationArea::IsSingleFunctionDevice( uint8_t header_type ) const
     return (header_type & 0x80u) == 0;
 }
 
-Result ConfigurationArea::ScanAllBus()
+Error::Code ConfigurationArea::ScanAllBus()
 {
     m_NumDevice = 0;
 
@@ -135,7 +169,7 @@ Result ConfigurationArea::ScanAllBus()
         }
     }
 
-    return Result::Success;
+    return Error::Code::kSuccess;
 }
 
 const ConfigurationArea::DeviceArray& ConfigurationArea::GetDevices() const
@@ -148,7 +182,7 @@ int ConfigurationArea::GetDeviceNum() const
     return m_NumDevice;
 }
 
-Result ConfigurationArea::ScanBus( uint8_t bus )
+Error::Code ConfigurationArea::ScanBus( uint8_t bus )
 {
     for( uint8_t device = 0; device < 32; ++device ){
         // function id 0 の vendorID が 0xFFFF なら、有効なデバイスが存在しないのでスキップ
@@ -162,10 +196,10 @@ Result ConfigurationArea::ScanBus( uint8_t bus )
         }
     }
 
-    return Result::Success;
+    return Error::Code::kSuccess;
 }
 
-Result ConfigurationArea::ScanDevice( uint8_t bus, uint8_t device )
+Error::Code ConfigurationArea::ScanDevice( uint8_t bus, uint8_t device )
 {
     for( uint8_t function = 0; function < 8; ++function ){
         if( ReadVendorID( bus, device, function ) == 0xFFFFu ){
@@ -178,10 +212,10 @@ Result ConfigurationArea::ScanDevice( uint8_t bus, uint8_t device )
         }
     }
 
-    return Result::Success;
+    return Error::Code::kSuccess;
 }
 
-Result ConfigurationArea::ScanFunction( uint8_t bus, uint8_t device, uint8_t function )
+Error::Code ConfigurationArea::ScanFunction( uint8_t bus, uint8_t device, uint8_t function )
 {
     auto header_type = ReadHeaderType( bus, device, function );
     auto err = AddDevice( bus, device, function, header_type );
@@ -197,13 +231,13 @@ Result ConfigurationArea::ScanFunction( uint8_t bus, uint8_t device, uint8_t fun
         return ScanBus(secondary_bus);
     }
 
-    return Result::Success;
+    return Error::Code::kSuccess;
 }
 
-Result ConfigurationArea::AddDevice( uint8_t bus, uint8_t device, uint8_t function, uint8_t header_type )
+Error::Code ConfigurationArea::AddDevice( uint8_t bus, uint8_t device, uint8_t function, uint8_t header_type )
 {
     if( m_NumDevice >= sk_DeviceMax ){
-        return Result::Full;
+        return Error::Code::kFull;
     }
 
     
@@ -211,7 +245,7 @@ Result ConfigurationArea::AddDevice( uint8_t bus, uint8_t device, uint8_t functi
                                       ReadClassCode(bus, device, function) };
     ++m_NumDevice;
 
-    return Result::Success;
+    return Error::Code::kSuccess;
 }
 
 } // namespace pci

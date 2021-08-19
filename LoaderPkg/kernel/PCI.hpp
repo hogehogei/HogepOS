@@ -5,7 +5,7 @@
 //
 #include <cstdint>
 
-#include "Error.hpp"
+#include "error.hpp"
 
 namespace pci
 {
@@ -86,6 +86,17 @@ namespace pci
          * @brief CONFIG_DATA からデータ読み取り
          */
         uint32_t ReadData() const;
+
+        /**
+         * @brief コンフィギュレーション空間の指定アドレスを読み出す
+         **/
+        uint32_t ReadConfReg( const Device& device, uint8_t addr ) const;
+
+        /**
+         * @brief コンフィギュレーション空間の指定アドレスへ書き込む
+         **/
+        void WriteConfReg( const Device& device, uint8_t addr, uint32_t value );
+        
         /**
          * @brief ベンダーID読み取り
          */
@@ -110,7 +121,8 @@ namespace pci
         /**
          * @brief Read BAR 64bit
          */
-        uint64_t ReadBAR( uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_num ) const;
+        WithError<uint64_t> ReadBAR( uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_num ) const;
+        WithError<uint64_t> ReadBAR( const Device& device, uint8_t bar_num ) const;
 
         /**
          * @brief シングルファンクションデバイスか判定
@@ -120,7 +132,7 @@ namespace pci
         /**
          * @brief PCIバス全探索
          */
-        Result ScanAllBus();
+        Error::Code ScanAllBus();
 
         const DeviceArray& GetDevices() const;
         int GetDeviceNum() const;
@@ -130,19 +142,19 @@ namespace pci
          /**
          * @brief デバイス追加
          */
-        Result AddDevice( uint8_t bus, uint8_t device, uint8_t funciton, uint8_t header_type );
+        Error::Code AddDevice( uint8_t bus, uint8_t device, uint8_t funciton, uint8_t header_type );
         /**
          * @brief バス探索
          */
-        Result ScanBus( uint8_t bus );
+        Error::Code ScanBus( uint8_t bus );
         /**
          * @brief デバイス探索
          */
-        Result ScanDevice( uint8_t bus, uint8_t device );
+        Error::Code ScanDevice( uint8_t bus, uint8_t device );
         /**
          * @brief ファンクション探索
          */
-        Result ScanFunction( uint8_t bus, uint8_t device, uint8_t function );
+        Error::Code ScanFunction( uint8_t bus, uint8_t device, uint8_t function );
 
         DeviceArray  m_Devices;            //! 認識したデバイス記録先
         int m_NumDevice;                   //! 認識したデバイス数

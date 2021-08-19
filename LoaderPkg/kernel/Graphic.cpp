@@ -68,6 +68,15 @@ void DrawRectAngle( IPixelWriter& writer, const Vector2<int>& pos, const Vector2
     }
 }
 
+void EraseMouseCursor( IPixelWriter& writer, const Vector2<int>& pos, const PixelColor& back_color )
+{
+    for( int dy = 0; dy < sk_MouseCursorHeight; ++dy ){
+        for( int dx = 0; dx < sk_MouseCursorWidth; ++dx ){
+            writer.Write( pos.x + dx, pos.y + dy, back_color );
+        }
+    }
+}
+
 void DrawMouseCursor( IPixelWriter& writer, const Vector2<int>& pos )
 {
     for( int dy = 0; dy < sk_MouseCursorHeight; ++dy ){

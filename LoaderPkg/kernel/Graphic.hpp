@@ -20,4 +20,5 @@ public:
 
 void FillRectAngle( IPixelWriter& writer, const Vector2<int>& pos, const Vector2<int>& size, const PixelColor& color );
 void DrawRectAngle( IPixelWriter& writer, const Vector2<int>& pos, const Vector2<int>& size, const PixelColor& color );
+void EraseMouseCursor( IPixelWriter& writer, const Vector2<int>& pos, const PixelColor& back_color );
 void DrawMouseCursor( IPixelWriter& writer, const Vector2<int>& pos );

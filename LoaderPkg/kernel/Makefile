@@ -1,12 +1,11 @@
 TARGET	=	kernel.elf
-CPPSRCS	=	$(wildcard *.cpp)
+CPPSRCS	=	$(wildcard *.cpp usb/*.cpp usb/classdriver/*.cpp usb/xhci/*.cpp)
 CSRCS   =   $(wildcard *.c)
 ASMSRCS =   $(wildcard *.asm)
-CPPOBJS	=	$(notdir $(CPPSRCS:.cpp=.o))
-COBJS   =   $(notdir $(CSRCS:.c=.o))
+CPPOBJS	=	$(CPPSRCS:.cpp=.o)
+COBJS   =   $(CSRCS:.c=.o)
 COBJS   +=   hankaku_font.o
-ASMOBJS =   $(notdir $(ASMSRCS:.asm=.o))
-INCDIR	=	"../"
+ASMOBJS =   $(ASMSRCS:.asm=.o)
 
 CXXFLAGS	+=	-O2 -Wall -g --target=x86_64-elf -ffreestanding -mno-red-zone \
 				-fno-exceptions -fno-rtti -fno-threadsafe-statics -std=c++17
@@ -20,14 +19,14 @@ clean:
 	rm -rf *.o && rm $(TARGET)
 
 $(TARGET):	$(COBJS) $(CPPOBJS) $(ASMOBJS) Makefile
-	ld.lld $(LDFLAGS) -o $(TARGET) $(CPPOBJS) $(COBJS) $(ASMOBJS)
+	ld.lld $(LDFLAGS) -o $(TARGET) $(CPPOBJS) $(COBJS) $(ASMOBJS) -lc -lc++
 	mv $(TARGET) ../
 
 %.o: %.cpp Makefile
-	clang++ $(CPPFLAGS) $(CXXFLAGS) -I$(INCDIR) -c $<
+	clang++ $(CPPFLAGS) $(CXXFLAGS) -I. -I.. -c $< -o $@
 
 %.o: %.c Makefile
-	clang $(CPPFLAGS) $(CFLAGS) -I$(INCDIR) -c $<
+	clang $(CPPFLAGS) $(CFLAGS) -I. -I.. -c $< -o $@
 
 %.o: %.asm Makefile
 	nasm -f elf64 -o $@ $<
