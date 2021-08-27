@@ -113,9 +113,31 @@ extern "C" void KernelMain( const FrameBufferConfig* config )
         }
     }
 
-    __asm__("sti");
-        while(1){
-        asm( "hlt" );
+    while(1){
+        __asm("cli");
+        if( g_EventQueue.IsEmpty() ){
+            __asm__("sti\n\thlt");
+            continue;
+        }
+
+        auto msg = g_EventQueue.Front();
+        g_EventQueue.Pop();
+        __asm__("sti");
+
+        switch( msg.type ){
+        case Message::k_InterruptXHCI:
+
+            while( g_xHC_Controller->PrimaryEventRing()->HasFront() ){
+                auto err = ProcessEvent( *g_xHC_Controller );
+                if( err ){
+                    Log( kDebug, "Error while ProcessEvent: %s at %s:%d\n",
+                        err.Name(), err.File(), err.Line() );
+                }
+            }
+            break;
+        default:
+            Log( kError, "Unknown message type: %d\n", msg.type );
+        }
     }
 }
 

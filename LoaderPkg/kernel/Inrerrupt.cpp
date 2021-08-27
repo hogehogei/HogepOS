@@ -3,20 +3,13 @@
 
 #include "Interrupt.hpp"
 #include "Global.hpp"
+#include "Event.hpp"
 
 
 __attribute__((interrupt))
 void IntHandlerXHCI( InterruptFrame* frame )
 {
-    Log( kDebug, "IntHandler invoked\n" );
-    while( g_xHC_Controller->PrimaryEventRing()->HasFront() ){
-        auto err = ProcessEvent( *g_xHC_Controller );
-        if( err ){
-            Log( kDebug, "Error while ProcessEvent: %s at %s:%d\n",
-                 err.Name(), err.File(), err.Line() );
-        }
-    }
-
+    g_EventQueue.Push( Message(Message::k_InterruptXHCI) );
     NotifyEndOfInterrupt();
 }
 
