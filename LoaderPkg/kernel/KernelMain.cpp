@@ -2,14 +2,18 @@
 #include <cstddef>
 #include <cstdio>
 
+#include "../MemoryMap.hpp"
 #include "Main.h"
-#include "PixelWriter.hpp"
-#include "Font.hpp"
-#include "Console.hpp"
+#include "Segment.hpp"
+#include "Paging.hpp"
+#include "MemoryManager.hpp"
 #include "PCI.hpp"
 #include "MSI.hpp"
 #include "Interrupt.hpp"
 #include "MouseCursor.hpp"
+#include "PixelWriter.hpp"
+#include "Font.hpp"
+#include "Console.hpp"
 
 #include "asmfunc.h"
 #include "usb/memory.hpp"
@@ -26,6 +30,7 @@
 // constant
 //
 static constexpr PixelColor sk_DesktopBGColor = { 1, 36, 86 };
+
 // 
 // static variables
 //
@@ -38,10 +43,18 @@ Console* g_Console;
 static char s_MouseCursorBuf[sizeof(MouseCursor)];
 MouseCursor* g_Cursor;
 
+static char s_MemoryManagerBuf[sizeof(BitmapMemoryManager)];
+BitmapMemoryManager* g_MemManager;
+
+alignas(16) uint8_t s_KernelMainStack[1024*1024];
+
 //
 // static functions
 //
+static void SetupMemory();
+static void InitMemoryManager( const MemoryMap* memory_map );
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config );
+static void ShowMemoryType( const MemoryMap* memory_map );
 static void SearchIntelxHC();
 static uint64_t Read_xHC_Bar();
 static void Init_XHCI_Controller( usb::xhci::Controller& controller );
@@ -49,12 +62,19 @@ static void SwitchEhci2Xhci( const pci::Device& xhc_dev );
 static void MouseObserver( int8_t displacement_x, int8_t displacement_y );
 static int Printk( const char* format, ... );
 
-extern "C" void KernelMain( const FrameBufferConfig* config )
+extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const MemoryMap* memory_map_in )
 {
-    g_PixelWriter = GetPixelWriter( *config );
+    FrameBufferConfig config( *config_in );
+    MemoryMap memory_map( *memory_map_in );
+
+    SetupMemory();
+
+    g_PixelWriter = GetPixelWriter( config );
     g_Console = new(s_ConsoleBuf) Console( g_PixelWriter, {255, 255, 255}, sk_DesktopBGColor );
     g_Cursor  = new(s_MouseCursorBuf) MouseCursor( g_PixelWriter, sk_DesktopBGColor, {300, 200} );
-
+    g_MemManager = new(s_MemoryManagerBuf) BitmapMemoryManager();
+    
+    InitMemoryManager( &memory_map );
     SetLogLevel( kInfo );
 
     pci::ConfigurationArea().Instance().ScanAllBus();
@@ -113,8 +133,10 @@ extern "C" void KernelMain( const FrameBufferConfig* config )
         }
     }
 
+    ShowMemoryType( &memory_map );
+
     while(1){
-        __asm("cli");
+        __asm__("cli");
         if( g_EventQueue.IsEmpty() ){
             __asm__("sti\n\thlt");
             continue;
@@ -141,6 +163,51 @@ extern "C" void KernelMain( const FrameBufferConfig* config )
     }
 }
 
+static void SetupMemory()
+{
+    SetupSegments();
+
+    const uint16_t kernel_cs = 1 << 3;
+    const uint16_t kernel_ss = 2 << 3;
+    SetDSAll( 0 );
+    SetCSSS( kernel_cs, kernel_ss );
+
+    SetupIdentityPageTable();
+}
+
+static void InitMemoryManager( const MemoryMap* memory_map )
+{
+    const auto memory_map_base = reinterpret_cast<uintptr_t>(memory_map->buffer);   
+    uintptr_t available_end = 0;
+
+    for( uintptr_t itr = memory_map_base; 
+         itr < memory_map_base + memory_map->map_size;
+         itr += memory_map->descriptor_size )
+    {
+        auto desc = reinterpret_cast<const MemoryDescriptor*>(itr);
+
+        if( available_end < desc->physical_start ){
+            g_MemManager->MarkAllocated( 
+                FrameID(available_end / k_BytesPerFrame),                    // start frame
+                (desc->physical_start - available_end) / k_BytesPerFrame    // frame size
+            );
+        }
+
+        const auto physical_end = desc->physical_start + desc->number_of_pages * kUEFIPageSize;
+        if( IsAvailableUEFIMemoryType(static_cast<MemoryType>(desc->type)) ){
+            available_end = physical_end;
+        }
+        else {
+            g_MemManager->MarkAllocated(
+                FrameID(desc->physical_start / k_BytesPerFrame),
+                desc->number_of_pages * kUEFIPageSize / k_BytesPerFrame
+            );
+        }
+    }
+
+    g_MemManager->SetMemoryRange( FrameID(1), FrameID(available_end / k_BytesPerFrame) );
+}
+
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config )
 {
     IPixelWriter* writer = nullptr;
@@ -159,6 +226,27 @@ static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config )
 
     return writer;
 }
+
+static void ShowMemoryType( const MemoryMap* memory_map )
+{
+    Printk( "memory map %p\n", memory_map );
+
+    uintptr_t buffer_begin = reinterpret_cast<uintptr_t>(memory_map->buffer);
+    uintptr_t buffer_end   = buffer_begin + memory_map->map_size;
+    for( uintptr_t itr = buffer_begin; itr < buffer_end; itr += memory_map->descriptor_size )
+    {
+        auto desc = reinterpret_cast<MemoryDescriptor*>(itr);
+
+        if( IsAvailableUEFIMemoryType(static_cast<MemoryType>(desc->type)) ){
+            Printk( "type = %u, phys = %08lx - %08lx, pages = %lu, attr = %016lx\n",
+                desc->type,
+                desc->physical_start,
+                desc->physical_start + desc->number_of_pages * 4096 - 1,
+                desc->attribute );
+        }
+    }
+}
+
 static void SearchIntelxHC()
 {
     auto& pci_mgr = pci::ConfigurationArea::Instance();

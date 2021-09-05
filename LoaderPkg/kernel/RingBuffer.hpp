@@ -8,8 +8,8 @@ template <typename T, std::size_t N>
 class RingBuffer
 {
 public:
-    RingBuffer() {}
-    ~RingBuffer() {}
+    RingBuffer() = default;
+    ~RingBuffer() = default;
 
     bool Push( const T& value )
     {

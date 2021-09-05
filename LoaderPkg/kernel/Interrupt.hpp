@@ -4,6 +4,7 @@
 // include headers
 //
 #include <cstdint>
+#include "DescriptorX86.hpp"
 
 //
 // constants
@@ -13,15 +14,6 @@ static constexpr volatile uint32_t sk_EndOfInterruptRegister = 0xFEE000B0;
 //
 // typedef structures
 //
-enum class DescriptorType {
-  kUpper8Bytes   = 0,
-  kLDT           = 2,
-  kTSSAvailable  = 9,
-  kTSSBusy       = 11,
-  kCallGate      = 12,
-  kInterruptGate = 14,
-  kTrapGate      = 15,
-};
 
 union InterruptDescriptorAttribute
 {

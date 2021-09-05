@@ -11,17 +11,10 @@
 #include <Guid/FileInfo.h>
 
 #include "Main.h"
+#include "MemoryMap.hpp"
 #include "ELF.hpp"
 
-typedef struct
-{
-    UINTN  buffer_size;
-    VOID*  buffer;
-    UINTN  map_size;
-    UINTN  map_key;
-    UINTN  descriptor_size;
-    UINT32 descriptor_version;
-} MemoryMap;
+
 
 // 
 // definition
@@ -102,10 +95,10 @@ EFI_STATUS EFIAPI UefiMain( EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_ta
     StopBootServices( image_handle, memmap );
 
     UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
-    typedef void EntryPointType( const FrameBufferConfig* );
+    typedef void EntryPointType( const FrameBufferConfig*, const MemoryMap* );
     EntryPointType* entry_point = (EntryPointType*)entry_addr;
 
-    entry_point( &config );
+    entry_point( &config, &memmap );
 
     while( 1 );
     return EFI_SUCCESS;

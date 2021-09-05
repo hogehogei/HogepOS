@@ -7,7 +7,6 @@
 #include "PCI.hpp"
 #include "Interrupt.hpp"
 #include "Event.hpp"
-#include "RingBuffer.hpp"
 
 #ifdef    GLOBAL_VARIABLE_DEFINITION
 #define   EXTERN 
