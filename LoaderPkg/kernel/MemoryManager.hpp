@@ -22,6 +22,8 @@ namespace
     }
 }
 
+// @brief ヒープメモリサイズ
+inline static constexpr uint64_t k_HeapFrames = 64 * 512;
 // @brief 物理メモリフレーム1つの大きさ(Byte)
 inline static constexpr uint64_t k_BytesPerFrame = 4_KiB;
 
@@ -117,6 +119,7 @@ private:
     FrameID m_RangeEnd;
 };
 
+Error InitializeHeap( BitmapMemoryManager& mgr );
 
 
 

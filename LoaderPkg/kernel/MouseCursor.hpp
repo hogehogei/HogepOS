@@ -16,3 +16,7 @@ private:
     PixelColor     m_BackColor;
     Vector2<int>   m_Position;
 };
+
+inline static constexpr int k_MouseCursorWidth  = 15;
+inline static constexpr int k_MouseCursorHeight = 24;
+inline static constexpr PixelColor k_MouseTransparentColor = { 0, 0, 1 };

@@ -6,7 +6,7 @@ static uint8_t* PixelAt( const FrameBufferConfig& config, uint32_t x, uint32_t y
 }
 
 RGB8BitPerColorPixelWriter::RGB8BitPerColorPixelWriter( const FrameBufferConfig& config )
-    : m_Config( config )
+    : FrameBufferPixelWriter( config )
 {}
 
 void RGB8BitPerColorPixelWriter::Write( uint32_t x, uint32_t y, const PixelColor& c )
@@ -22,7 +22,7 @@ void RGB8BitPerColorPixelWriter::Write( uint32_t x, uint32_t y, const PixelColor
 
 
 BGR8BitPerColorPixelWriter::BGR8BitPerColorPixelWriter( const FrameBufferConfig& config )
-    : m_Config( config )
+    : FrameBufferPixelWriter( config )
 {}
 
 void BGR8BitPerColorPixelWriter::Write( uint32_t x, uint32_t y, const PixelColor& c )

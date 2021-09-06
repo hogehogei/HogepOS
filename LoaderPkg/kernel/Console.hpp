@@ -14,6 +14,7 @@ public:
     Console( IPixelWriter* writer, const PixelColor& fg_color, const PixelColor& bg_color );
     ~Console() = default;
 
+    void SetWriter( IPixelWriter* writer );
     void PutString( const char* s );
 
 private:
@@ -23,7 +24,7 @@ private:
     char* CurrentLine();
     void NewLine();
     void ClearConsole();
-    void RewriteConsoleLines();
+    void Refresh();
 
     IPixelWriter* m_PixelWriter;
     const PixelColor m_ForeGroundColor;

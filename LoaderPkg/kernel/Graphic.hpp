@@ -9,6 +9,8 @@ public:
 
     T x, y;
 
+    Vector2( T tx, T ty ) : x(tx), y(ty) {}
+
     template <typename U>
     Vector2<T>& operator+=( const Vector2<U>& rhs )
     {

@@ -3,17 +3,16 @@
 // include files
 //
 #include "Graphic.hpp"
+#include "MouseCursor.hpp"
 
 //
 // constant
 //
-constexpr int sk_MouseCursorWidth  = 15;
-constexpr int sk_MouseCursorHeight = 24;
 
 //
 // static variables
 //
-const char sk_MouseCursorShape[sk_MouseCursorHeight][sk_MouseCursorWidth + 1] = {
+const char sk_MouseCursorShape[k_MouseCursorHeight][k_MouseCursorWidth + 1] = {
   "@              ",
   "@@             ",
   "@.@            ",
@@ -70,8 +69,8 @@ void DrawRectAngle( IPixelWriter& writer, const Vector2<int>& pos, const Vector2
 
 void EraseMouseCursor( IPixelWriter& writer, const Vector2<int>& pos, const PixelColor& back_color )
 {
-    for( int dy = 0; dy < sk_MouseCursorHeight; ++dy ){
-        for( int dx = 0; dx < sk_MouseCursorWidth; ++dx ){
+    for( int dy = 0; dy < k_MouseCursorHeight; ++dy ){
+        for( int dx = 0; dx < k_MouseCursorWidth; ++dx ){
             writer.Write( pos.x + dx, pos.y + dy, back_color );
         }
     }
@@ -79,14 +78,17 @@ void EraseMouseCursor( IPixelWriter& writer, const Vector2<int>& pos, const Pixe
 
 void DrawMouseCursor( IPixelWriter& writer, const Vector2<int>& pos )
 {
-    for( int dy = 0; dy < sk_MouseCursorHeight; ++dy ){
-        for( int dx = 0; dx < sk_MouseCursorWidth; ++dx ){
+    for( int dy = 0; dy < k_MouseCursorHeight; ++dy ){
+        for( int dx = 0; dx < k_MouseCursorWidth; ++dx ){
             if( sk_MouseCursorShape[dy][dx] == '@' ){
                 writer.Write( pos.x + dx, pos.y + dy, {0, 0, 0} );
             }
-            if( sk_MouseCursorShape[dy][dx] == '.' ){
+            else if( sk_MouseCursorShape[dy][dx] == '.' ){
                 writer.Write( pos.x + dx, pos.y + dy, {255, 255, 255} );
-            } 
+            }
+            else {
+                writer.Write( pos.x + dx, pos.y + dy, k_MouseTransparentColor );
+            }
         }
     }
 }

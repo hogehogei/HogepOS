@@ -1,6 +1,7 @@
 #include <cstring>
 
 #include "Console.hpp"
+#include "Global.hpp"
 #include "Font.hpp"
 
 Console::Console( IPixelWriter* writer, const PixelColor& fg_color, const PixelColor& bg_color )
@@ -14,6 +15,13 @@ Console::Console( IPixelWriter* writer, const PixelColor& fg_color, const PixelC
 {
     m_ConsoleLines.Push( m_Buffer[m_CursorRow] );
     ClearConsole();
+}
+
+void Console::SetWriter( IPixelWriter* writer )
+{
+    m_PixelWriter = writer;
+    // コンソール再描写
+    Refresh();
 }
       
 void Console::PutString( const char* s )
@@ -29,6 +37,10 @@ void Console::PutString( const char* s )
             ++m_CursorColumn;
         }
         ++s;
+    }
+
+    if( g_LayerManager ){
+        g_LayerManager->Draw();
     }
 }
 
@@ -54,7 +66,7 @@ void Console::NewLine()
         memset( line, 0, sk_ColumnBufferLen );
         m_ConsoleLines.Push( line );
         // コンソール再描写
-        RewriteConsoleLines();
+        Refresh();
     }
 }
 
@@ -67,7 +79,7 @@ void Console::ClearConsole()
     }
 }
 
-void Console::RewriteConsoleLines()
+void Console::Refresh()
 {
     std::size_t size = m_ConsoleLines.Size();
     for( int row = 0; row < size; ++row ){

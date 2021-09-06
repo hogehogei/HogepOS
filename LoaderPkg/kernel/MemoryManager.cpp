@@ -2,6 +2,7 @@
 // include files
 //
 #include "MemoryManager.hpp"
+#include "Global.hpp"
 
 //
 // constant
@@ -101,4 +102,17 @@ void BitmapMemoryManager::SetBit( FrameID frame, bool allocated )
     else {
         m_AllocMap[byte_idx] &= ~bit_pos;
     }
+}
+
+Error InitializeHeap( BitmapMemoryManager& mgr )
+{
+    const auto heap_start = mgr.Allocate( k_HeapFrames );
+    if( heap_start.error ){
+        return heap_start.error;
+    }
+
+    g_ProgramBreak = reinterpret_cast<caddr_t>(heap_start.value.GetFrameID().ID() * k_BytesPerFrame);
+    g_ProgramBreakEnd = g_ProgramBreak + k_HeapFrames * k_BytesPerFrame;
+
+    return MAKE_ERROR(Error::kSuccess);
 }

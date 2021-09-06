@@ -19,7 +19,7 @@ clean:
 	rm -rf *.o && rm $(TARGET)
 
 $(TARGET):	$(COBJS) $(CPPOBJS) $(ASMOBJS) Makefile
-	ld.lld $(LDFLAGS) -o $(TARGET) $(CPPOBJS) $(COBJS) $(ASMOBJS) -lc -lc++
+	ld.lld $(LDFLAGS) -o $(TARGET) $(CPPOBJS) $(COBJS) $(ASMOBJS) -lc -lc++ -lc++abi
 	mv $(TARGET) ../
 
 %.o: %.cpp Makefile

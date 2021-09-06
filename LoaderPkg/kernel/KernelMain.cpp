@@ -60,6 +60,8 @@ static uint64_t Read_xHC_Bar();
 static void Init_XHCI_Controller( usb::xhci::Controller& controller );
 static void SwitchEhci2Xhci( const pci::Device& xhc_dev );
 static void MouseObserver( int8_t displacement_x, int8_t displacement_y );
+static void CreateLayer( const FrameBufferConfig& config );
+static void DrawDesktop( IPixelWriter& writer );
 static int Printk( const char* format, ... );
 
 extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const MemoryMap* memory_map_in )
@@ -73,9 +75,12 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
     g_Console = new(s_ConsoleBuf) Console( g_PixelWriter, {255, 255, 255}, sk_DesktopBGColor );
     g_Cursor  = new(s_MouseCursorBuf) MouseCursor( g_PixelWriter, sk_DesktopBGColor, {300, 200} );
     g_MemManager = new(s_MemoryManagerBuf) BitmapMemoryManager();
-    
+
     InitMemoryManager( &memory_map );
+    InitializeHeap( *g_MemManager );
     SetLogLevel( kInfo );
+
+    CreateLayer( config );
 
     pci::ConfigurationArea().Instance().ScanAllBus();
     const auto& devices = pci::ConfigurationArea().Instance().GetDevices();
@@ -324,7 +329,64 @@ static void SwitchEhci2Xhci( const pci::Device& xhc_dev )
 
 static void MouseObserver( int8_t displacement_x, int8_t displacement_y )
 {
-    g_Cursor->MoveRelative( {displacement_x, displacement_y} );
+     g_LayerManager->MoveRelative( g_MouseLayerID, {displacement_x, displacement_y} );
+     g_LayerManager->Draw();
+}
+
+static void CreateLayer( const FrameBufferConfig& config )
+{
+    const int k_FrameWidth = config.HorizontalResolution;
+    const int k_FrameHeight = config.VerticalResolution;
+
+    auto bg_window = std::make_shared<Window>( k_FrameWidth, k_FrameHeight );
+    auto bg_writer = bg_window->Writer();
+
+    DrawDesktop( *bg_writer );
+    g_Console->SetWriter( bg_writer );
+
+    auto mouse_window = std::make_shared<Window>( k_MouseCursorWidth, k_MouseCursorHeight );
+    mouse_window->SetTransparentColor( k_MouseTransparentColor );
+    DrawMouseCursor( *mouse_window->Writer(), {0, 0} );
+
+    g_LayerManager = new LayerManager();
+    g_LayerManager->SetWriter( g_PixelWriter );
+
+    auto bglayer_id = g_LayerManager->NewLayer()
+        .SetWindow( bg_window )
+        .Move( {0, 0} )
+        .ID();
+    auto mouse_layer_id = g_LayerManager->NewLayer()
+        .SetWindow( mouse_window )
+        .Move( {200, 200} )
+        .ID();
+    
+    g_LayerManager->UpDown( bglayer_id, 0 );
+    g_LayerManager->UpDown( mouse_layer_id, 1 );
+    g_LayerManager->Draw();
+
+    g_MouseLayerID = mouse_layer_id;
+}
+
+static void DrawDesktop( IPixelWriter& writer )
+{
+    const auto width = writer.Width();
+    const auto height = writer.Height();
+    FillRectAngle(writer,
+                    {0, 0},
+                    {width, height - 50},
+                    sk_DesktopBGColor );
+    FillRectAngle(writer,
+                    {0, height - 50},
+                    {width, 50},
+                    {1, 8, 17});
+    FillRectAngle(writer,
+                    {0, height - 50},
+                    {width / 5, 50},
+                    {80, 80, 80});
+    FillRectAngle(writer,
+                    {10, height - 40},
+                    {30, 30},
+                    {160, 160, 160});
 }
 
 static int Printk( const char* format, ... )
