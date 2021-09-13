@@ -11,6 +11,7 @@
 #include <Guid/FileInfo.h>
 
 #include "Main.h"
+#include "PixelFormat.h"
 #include "MemoryMap.hpp"
 #include "ELF.hpp"
 

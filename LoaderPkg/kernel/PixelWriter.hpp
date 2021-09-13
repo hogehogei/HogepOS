@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include "Main.h"
+#include "PixelFormat.h"
 
 struct PixelColor
 {

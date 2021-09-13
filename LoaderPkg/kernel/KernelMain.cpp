@@ -60,7 +60,7 @@ static uint64_t Read_xHC_Bar();
 static void Init_XHCI_Controller( usb::xhci::Controller& controller );
 static void SwitchEhci2Xhci( const pci::Device& xhc_dev );
 static void MouseObserver( int8_t displacement_x, int8_t displacement_y );
-static void CreateLayer( const FrameBufferConfig& config );
+static void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen );
 static void DrawDesktop( IPixelWriter& writer );
 static int Printk( const char* format, ... );
 
@@ -76,11 +76,14 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
     g_Cursor  = new(s_MouseCursorBuf) MouseCursor( g_PixelWriter, sk_DesktopBGColor, {300, 200} );
     g_MemManager = new(s_MemoryManagerBuf) BitmapMemoryManager();
 
+    FrameBuffer screen;
+    screen.Initialize( config );
+
     InitMemoryManager( &memory_map );
     InitializeHeap( *g_MemManager );
     SetLogLevel( kInfo );
 
-    CreateLayer( config );
+    CreateLayer( config, &screen );
 
     pci::ConfigurationArea().Instance().ScanAllBus();
     const auto& devices = pci::ConfigurationArea().Instance().GetDevices();
@@ -333,23 +336,23 @@ static void MouseObserver( int8_t displacement_x, int8_t displacement_y )
      g_LayerManager->Draw();
 }
 
-static void CreateLayer( const FrameBufferConfig& config )
+static void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
 {
     const int k_FrameWidth = config.HorizontalResolution;
     const int k_FrameHeight = config.VerticalResolution;
 
-    auto bg_window = std::make_shared<Window>( k_FrameWidth, k_FrameHeight );
+    auto bg_window = std::make_shared<Window>( k_FrameWidth, k_FrameHeight, config.PixelFormat );
     auto bg_writer = bg_window->Writer();
 
     DrawDesktop( *bg_writer );
     g_Console->SetWriter( bg_writer );
 
-    auto mouse_window = std::make_shared<Window>( k_MouseCursorWidth, k_MouseCursorHeight );
+    auto mouse_window = std::make_shared<Window>( k_MouseCursorWidth, k_MouseCursorHeight, config.PixelFormat );
     mouse_window->SetTransparentColor( k_MouseTransparentColor );
     DrawMouseCursor( *mouse_window->Writer(), {0, 0} );
 
     g_LayerManager = new LayerManager();
-    g_LayerManager->SetWriter( g_PixelWriter );
+    g_LayerManager->SetWriter( screen );
 
     auto bglayer_id = g_LayerManager->NewLayer()
         .SetWindow( bg_window )

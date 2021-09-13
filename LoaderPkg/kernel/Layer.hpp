@@ -27,8 +27,8 @@ public:
     //! @brief レイヤーの位置情報を指定された双代座標へと更新する。再描写はしない
     Layer& MoveRelative( Vector2<int> pos_diff );
 
-    //! @brief writer に現在設定されているウィンドウの内容を描写する
-    void DrawTo( IPixelWriter& writer ) const;
+    //! @brief fb に現在設定されているウィンドウの内容を描写する
+    void DrawTo( FrameBuffer& fb ) const;
 
 private:
 
@@ -45,7 +45,7 @@ public:
     ~LayerManager() = default;
 
     //! @brief  Drawメソッド などで描写する際の描画先を指定する
-    void SetWriter( IPixelWriter* writer );
+    void SetWriter( FrameBuffer* screen );
 
     /**
      * @brief  新しいレイヤーを生成して参照を返す
@@ -77,7 +77,7 @@ private:
 
     Layer* FindLayer( LayerID id );
 
-    IPixelWriter* m_Writer;
+    FrameBuffer* m_Screen;
     std::vector<LayerPtr> m_Layers;
     std::vector<Layer*>   m_LayerStack;
     LayerID m_LatestID;

@@ -55,24 +55,24 @@ Layer& Layer::MoveRelative( Vector2<int> pos_diff )
     return *this;
 }
 
-void Layer::DrawTo( IPixelWriter& writer ) const
+void Layer::DrawTo( FrameBuffer& fb ) const
 {
     if( m_Window ){
-        m_Window->DrawTo( writer, m_Pos );
+        m_Window->DrawTo( fb, m_Pos );
     }
 }
 
 
 LayerManager::LayerManager()
-    : m_Writer( nullptr ),
+    : m_Screen( nullptr ),
       m_Layers(),
       m_LayerStack(),
       m_LatestID( 0 )
 {}
 
-void LayerManager::SetWriter( IPixelWriter* writer )
+void LayerManager::SetWriter( FrameBuffer* screen )
 {
-    m_Writer = writer;
+    m_Screen = screen;
 }
 
 Layer& LayerManager::NewLayer()
@@ -85,7 +85,7 @@ Layer& LayerManager::NewLayer()
 void LayerManager::Draw() const
 {
     for( auto layer : m_LayerStack ){
-        layer->DrawTo( *m_Writer );
+        layer->DrawTo( *m_Screen );
     }
 }
 
