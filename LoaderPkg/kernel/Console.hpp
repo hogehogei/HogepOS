@@ -3,6 +3,7 @@
 #include <cstdint>
 #include "RingBuffer.hpp"
 #include "PixelWriter.hpp"
+#include "Window.hpp"
 
 class Console
 {
@@ -11,10 +12,12 @@ public:
     static constexpr int sk_Rows    = 25;
     static constexpr int sk_Columns = 80;
     
-    Console( IPixelWriter* writer, const PixelColor& fg_color, const PixelColor& bg_color );
+    Console( const PixelColor& fg_color, const PixelColor& bg_color );
     ~Console() = default;
 
-    void SetWriter( IPixelWriter* writer );
+    void SetWindow( std::shared_ptr<Window> window );
+    void SetLayerID( unsigned int layer_id );
+    unsigned int LayerID() const;
     void PutString( const char* s );
 
 private:
@@ -26,7 +29,8 @@ private:
     void ClearConsole();
     void Refresh();
 
-    IPixelWriter* m_PixelWriter;
+    std::shared_ptr<Window> m_Window;
+    unsigned int m_LayerID;
     const PixelColor m_ForeGroundColor;
     const PixelColor m_BackGroundColor;
 

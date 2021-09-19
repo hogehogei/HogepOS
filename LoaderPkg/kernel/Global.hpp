@@ -9,6 +9,7 @@
 #include "Interrupt.hpp"
 #include "Event.hpp"
 #include "RingBuffer.hpp"
+#include "Graphic.hpp"
 #include "Layer.hpp"
 #endif
 
@@ -35,7 +36,10 @@ EXTERN const pci::Device* g_xHC_Device;
 EXTERN usb::xhci::Controller* g_xHC_Controller;
 EXTERN LayerManager* g_LayerManager;
 EXTERN int g_MouseLayerID;
+EXTERN int g_MainWindowLayerID;
 
+EXTERN Vector2<int> g_MousePosition;
+EXTERN Vector2<int> g_ScreenSize;
 EXTERN std::array<InterruptDescriptor, 256> g_IDT;
 EXTERN RingBuffer<Message, 32> g_EventQueue;
 #endif

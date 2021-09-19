@@ -43,7 +43,7 @@ LoadIDT:
 
 global KernelMain
 KernelMain:
-    mov rsp, s_KernelMainStack + 1024 * 1024
+    mov rsp, s_KernelMainStack + 2048 * 1024
     call KernelMainNewStack
 .fin:
     hlt

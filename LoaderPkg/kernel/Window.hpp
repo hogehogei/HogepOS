@@ -43,7 +43,7 @@ public:
      * @param dst    描写先
      * @param pos    dst の左上を基準とした描写位置
      */
-    void DrawTo( FrameBuffer& dst, Vector2<int> pos );
+    void DrawTo( FrameBuffer& dst, Vector2<int> pos, const RectAngle<int>& area );
 
     //! @brief 透過色を設定する
     void SetTransparentColor( const std::optional<PixelColor>& c );
@@ -63,6 +63,8 @@ public:
     int Width() const;
     //! @brief 平面描写領域の高さをピクセル単位で返す
     int Height() const;
+    //! @brief 平面描写領域のサイズを返す
+    Vector2<int> Size() const;
 
 private:
 
@@ -73,3 +75,5 @@ private:
 
     FrameBuffer m_ShadowBuffer;
 };
+
+void DrawWindow( IPixelWriter& writer, const char* title );

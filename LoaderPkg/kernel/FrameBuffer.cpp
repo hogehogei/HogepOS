@@ -15,16 +15,69 @@
 //
 // static function declaration
 // 
-
+namespace {
+    int BitsPerPixel( PixelFormat format );
+    int BytesPerPixel( PixelFormat format );
+    uint8_t* FrameAddrAt( Vector2<int> pos, const FrameBufferConfig& config );
+    int BytesPerScanLine( const FrameBufferConfig& config );
+    Vector2<int> FrameBufferSize( const FrameBufferConfig& config );
+}
 //
 // funcion definitions
 // 
+
+namespace {
+    
+    int BitsPerPixel( PixelFormat format )
+    {
+        switch( format ){
+        case kPixelRGBReserved8BitPerColor:
+            return 32;
+        case kPixelBGRReserved8BitPerColor:
+            return 32;
+        default:
+            return -1;
+        }
+        return -1;
+    }
+    
+    int BytesPerPixel( PixelFormat format )
+    {
+        switch (format) {
+        case kPixelRGBReserved8BitPerColor: 
+            return 4;
+        case kPixelBGRReserved8BitPerColor: 
+            return 4;
+        default: 
+            return -1;
+        }
+        return -1;
+    }
+
+    uint8_t* FrameAddrAt( Vector2<int> pos, const FrameBufferConfig& config ) 
+    {
+        return config.FrameBuffer + BytesPerPixel(config.PixelFormat) *
+        (config.PixelsPerScanLine * pos.y + pos.x);
+    }
+
+    int BytesPerScanLine( const FrameBufferConfig& config ) 
+    {
+        return BytesPerPixel(config.PixelFormat) * config.PixelsPerScanLine;
+    }
+
+    Vector2<int> FrameBufferSize( const FrameBufferConfig& config ) 
+    {
+        return {static_cast<int>(config.HorizontalResolution),
+                static_cast<int>(config.VerticalResolution)};
+    }
+}
+
 Error FrameBuffer::Initialize( const FrameBufferConfig& config )
 {
     m_Config = config;
 
-    const auto bits_per_pixel = BitsPerPixel( config.PixelFormat );
-    if( bits_per_pixel <= 0 ){
+    const auto bytes_per_pixel = BytesPerPixel( config.PixelFormat );
+    if( bytes_per_pixel <= 0 ){
         return MAKE_ERROR( Error::kUnknownPixelFormat );
     }
 
@@ -33,7 +86,7 @@ Error FrameBuffer::Initialize( const FrameBufferConfig& config )
     }
     else {
         m_Buffer.resize(
-            ((bits_per_pixel + 7) / 8) * m_Config.HorizontalResolution * m_Config.VerticalResolution
+            bytes_per_pixel * m_Config.HorizontalResolution * m_Config.VerticalResolution
         );
         m_Config.FrameBuffer = m_Buffer.data();
         m_Config.PixelsPerScanLine = m_Config.HorizontalResolution;
@@ -53,47 +106,31 @@ Error FrameBuffer::Initialize( const FrameBufferConfig& config )
     return MAKE_ERROR( Error::kSuccess );
 }
 
-Error FrameBuffer::Copy( Vector2<int> pos, const FrameBuffer& src )
+Error FrameBuffer::Copy( Vector2<int> dst_pos, const FrameBuffer& src, const RectAngle<int>& src_area )
 {
     if( m_Config.PixelFormat != src.m_Config.PixelFormat ){
         return MAKE_ERROR( Error::kUnknownPixelFormat );
     }
 
-    const auto bits_per_pixel = BitsPerPixel( m_Config.PixelFormat );
-    if( bits_per_pixel <= 0 ){
+    const auto bytes_per_pixel = BytesPerPixel( m_Config.PixelFormat );
+    if( bytes_per_pixel <= 0 ){
         return MAKE_ERROR( Error::kUnknownPixelFormat );
     }
 
-    const auto dst_width = m_Config.HorizontalResolution;
-    const auto dst_height = m_Config.VerticalResolution;
-    const auto src_width =  src.m_Config.HorizontalResolution;
-    const auto src_height = src.m_Config.VerticalResolution;
+    const RectAngle<int> dst_outline( {0, 0}, FrameBufferSize(m_Config) );
+    const RectAngle<int> src_area_shifted( dst_pos, src_area.size );
+    const RectAngle<int> src_outline( dst_pos - src_area.pos, FrameBufferSize(src.m_Config) );
 
-    const int copy_start_dst_x = std::max( pos.x, 0 );
-    const int copy_start_dst_y = std::max( pos.y, 0 );
-    const int copy_end_dst_x = std::min( pos.x + src_width, dst_width );
-    const int copy_end_dst_y = std::min( pos.y + src_height, dst_height );
+    const auto copy_area = dst_outline.Intersection( src_outline.Intersection( src_area_shifted ) );
+    const auto src_start_pos = ElementMin( src_area.pos, FrameBufferSize(src.m_Config) - Vector2<int>(1, 1) );
+ 
+    uint8_t* dst_buf = FrameAddrAt( copy_area.pos, m_Config );
+    const uint8_t* src_buf = FrameAddrAt( src_start_pos, src.m_Config );
 
-    if( copy_end_dst_x < 0 || copy_end_dst_y < 0 ||
-        copy_start_dst_x >= dst_width || copy_start_dst_y >= dst_height )
-    {
-        return MAKE_ERROR( Error::kInvalidArguments );
-    }
-
-    const auto bytes_per_pixel = (bits_per_pixel + 7) / 8;
-    const auto bytes_per_copy_line = bytes_per_pixel * (copy_end_dst_x - copy_start_dst_x);
-
-    uint8_t* dst_buf = m_Config.FrameBuffer + 
-                       bytes_per_pixel * m_Config.PixelsPerScanLine + copy_start_dst_x;
-
-    const uint8_t* src_buf = src.m_Config.FrameBuffer + 
-                             (bytes_per_pixel * src.m_Config.PixelsPerScanLine) - 
-                             bytes_per_copy_line;
-
-    for( int dy = 0; dy < copy_end_dst_y - copy_start_dst_y; ++dy ){
-        memcpy( dst_buf, src_buf, bytes_per_copy_line );
-        dst_buf += bytes_per_pixel * m_Config.PixelsPerScanLine;
-        src_buf += bytes_per_pixel * src.m_Config.PixelsPerScanLine;
+    for( int y = 0; y < copy_area.size.y; ++y ){
+        memcpy( dst_buf, src_buf, bytes_per_pixel * copy_area.size.x );
+        dst_buf += BytesPerScanLine( m_Config );
+        src_buf += BytesPerScanLine( src.m_Config );
     }
 
     return MAKE_ERROR( Error::kSuccess );
@@ -104,15 +141,7 @@ FrameBufferPixelWriter& FrameBuffer::Writer()
     return *m_Writer;
 }
 
-int BitsPerPixel( PixelFormat format )
+const FrameBufferConfig& FrameBuffer::Config() const
 {
-    switch( format ){
-    case kPixelRGBReserved8BitPerColor:
-        return 32;
-    case kPixelBGRReserved8BitPerColor:
-        return 32;
-    default:
-        return -1;
-    }
-    return -1;
+    return m_Config;
 }

@@ -28,7 +28,10 @@ public:
     Layer& MoveRelative( Vector2<int> pos_diff );
 
     //! @brief fb に現在設定されているウィンドウの内容を描写する
-    void DrawTo( FrameBuffer& fb ) const;
+    void DrawTo( FrameBuffer& fb, const RectAngle<int>& area ) const;
+
+    //! @brief 左上座標を基準としたレイヤの位置を返す
+    Vector2<int> GetPosition() const;
 
 private:
 
@@ -53,10 +56,12 @@ public:
      */
     Layer& NewLayer();
 
-    //! @brief 現在表示状態にあるレイヤーを描写する
-    void Draw() const;
+    //! @brief 現在表示状態にあるレイヤーのエリアを指定して表示する
+    void Draw( const RectAngle<int>& area ) const;
+    //! @brief 指定されたレイヤーより上にあるレイヤーの部分のみ再描写する
+    void Draw( unsigned int id ) const;
     //! @brief レイヤーの位置情報を指定された絶対座標へと更新する。再描写はしない
-    void Move( LayerID id, Vector2<int> pos );
+    void Move( LayerID id, Vector2<int> new_pos );
     //! @brief レイヤーの位置情報を指定された双代座標へと更新する。再描写はしない
     void MoveRelative( LayerID id, Vector2<int> pos_diff );
 
@@ -78,6 +83,7 @@ private:
     Layer* FindLayer( LayerID id );
 
     FrameBuffer* m_Screen;
+    mutable FrameBuffer m_BackBuffer;
     std::vector<LayerPtr> m_Layers;
     std::vector<Layer*>   m_LayerStack;
     LayerID m_LatestID;

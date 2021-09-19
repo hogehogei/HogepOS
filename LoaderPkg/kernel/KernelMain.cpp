@@ -7,6 +7,7 @@
 #include "Segment.hpp"
 #include "Paging.hpp"
 #include "MemoryManager.hpp"
+#include "Timer.hpp"
 #include "PCI.hpp"
 #include "MSI.hpp"
 #include "Interrupt.hpp"
@@ -46,7 +47,11 @@ MouseCursor* g_Cursor;
 static char s_MemoryManagerBuf[sizeof(BitmapMemoryManager)];
 BitmapMemoryManager* g_MemManager;
 
-alignas(16) uint8_t s_KernelMainStack[1024*1024];
+static char s_String[128];
+static unsigned int s_Count = 0;
+static std::shared_ptr<Window> g_MainWindow;
+
+alignas(16) uint8_t s_KernelMainStack[2048*1024];
 
 //
 // static functions
@@ -70,9 +75,10 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
     MemoryMap memory_map( *memory_map_in );
 
     SetupMemory();
+    InitializeLAPICTimer();
 
     g_PixelWriter = GetPixelWriter( config );
-    g_Console = new(s_ConsoleBuf) Console( g_PixelWriter, {255, 255, 255}, sk_DesktopBGColor );
+    g_Console = new(s_ConsoleBuf) Console( {255, 255, 255}, sk_DesktopBGColor );
     g_Cursor  = new(s_MouseCursorBuf) MouseCursor( g_PixelWriter, sk_DesktopBGColor, {300, 200} );
     g_MemManager = new(s_MemoryManagerBuf) BitmapMemoryManager();
 
@@ -83,6 +89,8 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
     InitializeHeap( *g_MemManager );
     SetLogLevel( kInfo );
 
+    g_MousePosition = Vector2<int>( 100, 100 );
+    g_ScreenSize = Vector2<int>( config.HorizontalResolution, config.VerticalResolution );
     CreateLayer( config, &screen );
 
     pci::ConfigurationArea().Instance().ScanAllBus();
@@ -144,9 +152,15 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
     ShowMemoryType( &memory_map );
 
     while(1){
+        ++s_Count;
+        sprintf( s_String, "%010u", s_Count );
+        FillRectAngle( *g_MainWindow->Writer(), {24, 28}, {8*10, 16}, {0xc6, 0xc6, 0xc6} );
+        WriteString( *g_MainWindow->Writer(), 24, 28, s_String, {0, 0, 0} );
+        g_LayerManager->Draw( g_MainWindowLayerID );
         __asm__("cli");
+
         if( g_EventQueue.IsEmpty() ){
-            __asm__("sti\n\thlt");
+            __asm__("sti");
             continue;
         }
 
@@ -332,8 +346,12 @@ static void SwitchEhci2Xhci( const pci::Device& xhc_dev )
 
 static void MouseObserver( int8_t displacement_x, int8_t displacement_y )
 {
-     g_LayerManager->MoveRelative( g_MouseLayerID, {displacement_x, displacement_y} );
-     g_LayerManager->Draw();
+    auto newpos = g_MousePosition + Vector2<int>( displacement_x, displacement_y );
+    newpos = ElementMin( newpos, g_ScreenSize + Vector2<int>(-1, -1) );
+    g_MousePosition = ElementMax( newpos, Vector2<int>(0, 0) );
+
+    g_LayerManager->Move( g_MouseLayerID, g_MousePosition );
+    g_LayerManager->Draw( g_MouseLayerID );
 }
 
 static void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
@@ -345,11 +363,20 @@ static void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
     auto bg_writer = bg_window->Writer();
 
     DrawDesktop( *bg_writer );
-    g_Console->SetWriter( bg_writer );
 
     auto mouse_window = std::make_shared<Window>( k_MouseCursorWidth, k_MouseCursorHeight, config.PixelFormat );
     mouse_window->SetTransparentColor( k_MouseTransparentColor );
     DrawMouseCursor( *mouse_window->Writer(), {0, 0} );
+
+    g_MainWindow = std::make_shared<Window>(
+        160, 52, config.PixelFormat
+    );
+    DrawWindow( *g_MainWindow->Writer(), "Hello window" );
+
+    auto console_window = std::make_shared<Window>(
+        Console::sk_Columns * 8, Console::sk_Rows * 16, config.PixelFormat 
+    );
+    g_Console->SetWindow( console_window );
 
     g_LayerManager = new LayerManager();
     g_LayerManager->SetWriter( screen );
@@ -360,14 +387,25 @@ static void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
         .ID();
     auto mouse_layer_id = g_LayerManager->NewLayer()
         .SetWindow( mouse_window )
-        .Move( {200, 200} )
+        .Move( g_MousePosition )
         .ID();
-    
+    auto main_window_layer_id = g_LayerManager->NewLayer()
+        .SetWindow( g_MainWindow )
+        .Move( {300, 100} )
+        .ID();
+    g_Console->SetLayerID( g_LayerManager->NewLayer()
+        .SetWindow( console_window )
+        .Move( {0, 0} )
+        .ID()
+    );
+
     g_LayerManager->UpDown( bglayer_id, 0 );
     g_LayerManager->UpDown( mouse_layer_id, 1 );
-    g_LayerManager->Draw();
+    g_LayerManager->UpDown( main_window_layer_id, 1 );
+    g_LayerManager->Draw( bglayer_id );
 
     g_MouseLayerID = mouse_layer_id;
+    g_MainWindowLayerID = main_window_layer_id;
 }
 
 static void DrawDesktop( IPixelWriter& writer )

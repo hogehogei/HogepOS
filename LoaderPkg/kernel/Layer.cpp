@@ -55,16 +55,21 @@ Layer& Layer::MoveRelative( Vector2<int> pos_diff )
     return *this;
 }
 
-void Layer::DrawTo( FrameBuffer& fb ) const
+void Layer::DrawTo( FrameBuffer& fb, const RectAngle<int>& area) const
 {
     if( m_Window ){
-        m_Window->DrawTo( fb, m_Pos );
+        m_Window->DrawTo( fb, m_Pos, area );
     }
 }
 
+Vector2<int> Layer::GetPosition() const
+{
+    return m_Pos;
+}
 
 LayerManager::LayerManager()
     : m_Screen( nullptr ),
+      m_BackBuffer(),
       m_Layers(),
       m_LayerStack(),
       m_LatestID( 0 )
@@ -73,6 +78,10 @@ LayerManager::LayerManager()
 void LayerManager::SetWriter( FrameBuffer* screen )
 {
     m_Screen = screen;
+
+    FrameBufferConfig back_config = screen->Config();
+    back_config.FrameBuffer = nullptr;
+    m_BackBuffer.Initialize( back_config );
 }
 
 Layer& LayerManager::NewLayer()
@@ -81,17 +90,43 @@ Layer& LayerManager::NewLayer()
     return *(m_Layers.emplace_back( std::make_unique<Layer>(m_LatestID) ));
 }
 
-
-void LayerManager::Draw() const
+void LayerManager::Draw( const RectAngle<int>& area ) const
 {
     for( auto layer : m_LayerStack ){
-        layer->DrawTo( *m_Screen );
+        layer->DrawTo( m_BackBuffer, area );
     }
+    m_Screen->Copy( area.pos, m_BackBuffer, area );
 }
 
-void LayerManager::Move( LayerID id, Vector2<int> pos )
+void LayerManager::Draw( unsigned int id ) const
 {
-    FindLayer(id)->Move(pos);
+    bool draw = false;
+    RectAngle<int> window_area;
+
+    for( auto layer : m_LayerStack ){
+        if( layer->ID() == id ){
+            window_area.size = layer->GetWindow()->Size();
+            window_area.pos  = layer->GetPosition();
+            draw = true;
+        }
+
+        if( draw ){
+            layer->DrawTo( m_BackBuffer, window_area );
+        }
+    }
+
+    m_Screen->Copy( window_area.pos, m_BackBuffer, window_area );
+}
+
+void LayerManager::Move( LayerID id, Vector2<int> new_pos )
+{
+    auto layer = FindLayer(id);
+    const auto window_size = layer->GetWindow()->Size();
+    const auto old_pos = layer->GetPosition();
+    layer->Move( new_pos );
+    
+    Draw( {old_pos, window_size} );
+    Draw( id );
 }
 
 void LayerManager::MoveRelative( LayerID id, Vector2<int> pos_diff )

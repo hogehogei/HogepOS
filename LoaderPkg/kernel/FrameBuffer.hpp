@@ -25,10 +25,12 @@ public:
      * @brief データコピー
      * @param [in] pos コピー先位置
      * @param [in] src コピー元バッファ
+     * @param [in] area コピー元バッファの左上を基準とするコピー領域
      */
-    Error Copy( Vector2<int> pos, const FrameBuffer& src );
+    Error Copy( Vector2<int> dst_pos, const FrameBuffer& src, const RectAngle<int>& src_area );
 
     FrameBufferPixelWriter& Writer();
+    const FrameBufferConfig& Config() const;
 
 private:
 
@@ -37,4 +39,4 @@ private:
     std::unique_ptr<FrameBufferPixelWriter> m_Writer;
 };
 
-int BitsPerPixel( PixelFormat format );
+//int BitsPerPixel( PixelFormat format );
