@@ -24,12 +24,25 @@
 Layer::Layer( LayerID id )
     : m_ID(id),
       m_Pos(0, 0),
+      m_Draggable( false ),
       m_Window()
 {}
 
 LayerID Layer::ID() const
 {
     return m_ID;
+}
+
+
+Layer& Layer::SetDraggable( bool draggable )
+{
+    m_Draggable = draggable;
+    return *this;
+}
+
+bool Layer::IsDraggable() const
+{
+    return m_Draggable;
 }
 
 Layer& Layer::SetWindow( const std::shared_ptr<Window>& window )
@@ -131,7 +144,13 @@ void LayerManager::Move( LayerID id, Vector2<int> new_pos )
 
 void LayerManager::MoveRelative( LayerID id, Vector2<int> pos_diff )
 {
-    FindLayer(id)->MoveRelative(pos_diff);
+    auto layer = FindLayer(id);
+    const auto window_size = layer->GetWindow()->Size();
+    const auto old_pos = layer->GetPosition();
+
+    layer->MoveRelative( pos_diff );
+    Draw( {old_pos, window_size} );
+    Draw( id );
 }
 
 void LayerManager::UpDown( LayerID id, int new_height )
@@ -170,6 +189,32 @@ void LayerManager::Hide( LayerID id )
     if( pos != m_LayerStack.end() ){
         m_LayerStack.erase(pos);
     }
+}
+
+Layer* LayerManager::FindLayerByPosition( Vector2<int> pos, unsigned int exclude_id ) const
+{
+    auto pred = [pos, exclude_id]( Layer* layer ){
+        if( layer->ID() == exclude_id ){
+            return false;
+        }
+        const auto& window = layer->GetWindow();
+        if( !window ){
+            return false;
+        }
+
+        const auto window_pos = layer->GetPosition();
+        const auto window_end_pos = window_pos + window->Size();
+
+        return window_pos.x <= pos.x && pos.x < window_end_pos.x &&
+               window_pos.y <= pos.y && pos.y < window_end_pos.y;
+    };
+
+    auto itr = std::find_if( m_LayerStack.rbegin(), m_LayerStack.rend(), pred );
+    if( itr == m_LayerStack.rend() ){
+        return nullptr;
+    }
+
+    return *itr;
 }
 
 Layer* LayerManager::FindLayer( LayerID id )

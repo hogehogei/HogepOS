@@ -17,6 +17,11 @@ public:
     //! @brief このインスタンスのIDを返す
     LayerID ID() const;
 
+    //! @brief ドラッグ許可・不許可設定
+    Layer& SetDraggable( bool draggable );
+    //! @brief ドラッグ許可設定取得
+    bool IsDraggable() const;
+
     //! @brief ウインドウを設定する。既存のウィンドウはこのレイヤーから外れる
     Layer& SetWindow( const std::shared_ptr<Window>& window );
     //! @brief 設定されたウィンドウを返す
@@ -35,8 +40,9 @@ public:
 
 private:
 
-    unsigned int  m_ID;
+    unsigned int m_ID;
     Vector2<int> m_Pos;
+    bool m_Draggable;
     std::shared_ptr<Window> m_Window;
 };
 
@@ -75,6 +81,11 @@ public:
 
     //! @brief  レイヤーを非表示にする
     void Hide( LayerID id );
+
+    /**
+     * @brief 指定された位置にあるレイヤーを検索する
+     */
+    Layer* FindLayerByPosition( Vector2<int> pos, unsigned int exclude_id ) const;
 
 private:
 
