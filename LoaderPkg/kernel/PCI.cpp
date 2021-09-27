@@ -2,8 +2,11 @@
 // include files
 //
 #include "PCI.hpp"
+#include "Global.hpp"
 #include "asmfunc.h"
 #include "error.hpp"
+#include "logger.hpp"
+
 
 namespace pci
 {
@@ -18,6 +21,7 @@ namespace pci
 //
 // static function declaration
 // 
+static void SearchIntelxHC();
 
 //
 // funcion definitions
@@ -246,6 +250,48 @@ Error::Code ConfigurationArea::AddDevice( uint8_t bus, uint8_t device, uint8_t f
     ++m_NumDevice;
 
     return Error::Code::kSuccess;
+}
+
+static void SearchIntelxHC()
+{
+    auto& pci_mgr = pci::ConfigurationArea::Instance();
+    g_xHC_Device = nullptr;
+
+    const auto& devices = pci_mgr.GetDevices();
+    int device_num = pci_mgr.GetDeviceNum();
+    for( int i = 0; i < device_num; ++i ){
+        const auto& dev = devices[i];
+        if( dev.ClassCode.Match( 0x0cu, 0x03u, 0x30u ) ){
+            g_xHC_Device = &devices[i];
+            if( pci_mgr.ReadVendorID(*g_xHC_Device) == 0x8086 ){
+                break;
+            }
+        }
+    }
+
+    if( g_xHC_Device ){
+        const auto& classcode = g_xHC_Device->ClassCode;
+        Log( kDebug, "xHC has been found: %d.%d.%d.\n",
+             classcode.Base(), classcode.Sub(), classcode.Interface() );
+    }
+}
+
+void InitializePCI()
+{
+    pci::ConfigurationArea().Instance().ScanAllBus();
+    const auto& devices = pci::ConfigurationArea().Instance().GetDevices();
+    int device_num = pci::ConfigurationArea().Instance().GetDeviceNum();
+
+   Log( kDebug, "NumDevice : %d\n", device_num );
+    for( int i = 0; i < device_num; ++i ){
+        const auto& dev = devices[i];
+        auto vendor_id  = pci::ConfigurationArea::Instance().ReadVendorID( dev.Bus, dev.Device, dev.Function );
+        auto class_code = pci::ConfigurationArea::Instance().ReadClassCode( dev.Bus, dev.Device, dev.Function );
+        Log( kDebug, "%d.%d.%d: vend %04x, class %08x, head %02x\n",
+             dev.Bus, dev.Device, dev.Function,
+             vendor_id, class_code, dev.HeaderType );
+    }
+    SearchIntelxHC();
 }
 
 } // namespace pci

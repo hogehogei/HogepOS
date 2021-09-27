@@ -9,8 +9,12 @@
 #include "Interrupt.hpp"
 #include "Event.hpp"
 #include "RingBuffer.hpp"
+#include "MemoryManager.hpp"
+#include "PixelWriter.hpp"
 #include "Graphic.hpp"
 #include "Layer.hpp"
+#include "Console.hpp"
+#include "MouseCursor.hpp"
 #endif
 
 #ifdef    GLOBAL_VARIABLE_DEFINITION
@@ -32,10 +36,16 @@ EXTERN caddr_t g_ProgramBreakEnd;
 #endif
 
 #ifdef __cplusplus
+EXTERN IPixelWriter* g_PixelWriter;
+EXTERN Console* g_Console;
+EXTERN MouseCursor* g_Cursor;
+EXTERN BitmapMemoryManager* g_MemManager;
+
 EXTERN const pci::Device* g_xHC_Device;
 EXTERN usb::xhci::Controller* g_xHC_Controller;
 EXTERN LayerManager* g_LayerManager;
 EXTERN int g_MouseLayerID;
+EXTERN std::shared_ptr<Window> g_MainWindow;
 EXTERN int g_MainWindowLayerID;
 
 EXTERN Vector2<int> g_MousePosition;

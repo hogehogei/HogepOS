@@ -1,10 +1,39 @@
 
-#include "logger.hpp"
-
+//
+// include files
+//
 #include "Interrupt.hpp"
 #include "Global.hpp"
 #include "Event.hpp"
+#include "PCI.hpp"
+#include "MSI.hpp"
 
+#include "logger.hpp"
+#include "asmfunc.h"
+
+
+void InitializeInterrupt()
+{
+    const uint16_t cs = GetCS();
+    SetIDTEntry( g_IDT[InterruptVector::kXHCI],
+                 MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+                 reinterpret_cast<uint64_t>(IntHandlerXHCI),
+                 cs );
+    Log( kDebug, "LoadIDT: size(%d), addr(%p)\n", sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
+    PrintIDTEntry( InterruptVector::kXHCI );
+    LoadIDT( sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
+
+    const uint8_t bsp_local_apic_id = *(reinterpret_cast<const uint32_t*>(0xFEE00020)) >> 24;
+    Log( kDebug, "BSP local apic id: (%d)\n", bsp_local_apic_id );
+    pci::ConfigureMSIFixedDestination(
+        *g_xHC_Device,
+        bsp_local_apic_id,
+        pci::MSITriggerMode::k_Level,
+        pci::MSIDeliveryMode::k_Fixed,
+        InterruptVector::kXHCI,
+        0
+    );
+}
 
 __attribute__((interrupt))
 void IntHandlerXHCI( InterruptFrame* frame )

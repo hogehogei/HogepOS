@@ -11,6 +11,7 @@
 #include "PCI.hpp"
 #include "MSI.hpp"
 #include "Interrupt.hpp"
+#include "Mouse.hpp"
 #include "MouseCursor.hpp"
 #include "PixelWriter.hpp"
 #include "Font.hpp"
@@ -30,26 +31,17 @@
 // 
 // constant
 //
-static constexpr PixelColor sk_DesktopBGColor = { 1, 36, 86 };
 
 // 
 // static variables
 //
 static char s_PixelWriterBuf[sizeof(RGB8BitPerColorPixelWriter)];
-IPixelWriter* g_PixelWriter;
-
 static char s_ConsoleBuf[sizeof(Console)];
-Console* g_Console;
-
 static char s_MouseCursorBuf[sizeof(MouseCursor)];
-MouseCursor* g_Cursor;
-
 static char s_MemoryManagerBuf[sizeof(BitmapMemoryManager)];
-BitmapMemoryManager* g_MemManager;
 
 static char s_String[128];
 static unsigned int s_Count = 0;
-static std::shared_ptr<Window> g_MainWindow;
 
 alignas(16) uint8_t s_KernelMainStack[2048*1024];
 
@@ -60,14 +52,8 @@ static void SetupMemory();
 static void InitMemoryManager( const MemoryMap* memory_map );
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config );
 static void ShowMemoryType( const MemoryMap* memory_map );
-static void SearchIntelxHC();
-static uint64_t Read_xHC_Bar();
-static void Init_XHCI_Controller( usb::xhci::Controller& controller );
-static void SwitchEhci2Xhci( const pci::Device& xhc_dev );
-static void MouseObserver( uint8_t buttons, int8_t displacement_x, int8_t displacement_y );
-static void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen );
-static void DrawDesktop( IPixelWriter& writer );
-static int Printk( const char* format, ... );
+
+
 
 extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const MemoryMap* memory_map_in )
 {
@@ -93,62 +79,9 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
     g_ScreenSize = Vector2<int>( config.HorizontalResolution, config.VerticalResolution );
     CreateLayer( config, &screen );
 
-    pci::ConfigurationArea().Instance().ScanAllBus();
-    const auto& devices = pci::ConfigurationArea().Instance().GetDevices();
-    int device_num = pci::ConfigurationArea().Instance().GetDeviceNum();
-
-   Log( kDebug, "NumDevice : %d\n", device_num );
-    for( int i = 0; i < device_num; ++i ){
-        const auto& dev = devices[i];
-        auto vendor_id  = pci::ConfigurationArea::Instance().ReadVendorID( dev.Bus, dev.Device, dev.Function );
-        auto class_code = pci::ConfigurationArea::Instance().ReadClassCode( dev.Bus, dev.Device, dev.Function );
-        Log( kDebug, "%d.%d.%d: vend %04x, class %08x, head %02x\n",
-             dev.Bus, dev.Device, dev.Function,
-             vendor_id, class_code, dev.HeaderType );
-    }
-    SearchIntelxHC();
-    
-    const uint16_t cs = GetCS();
-    SetIDTEntry( g_IDT[InterruptVector::kXHCI],
-                 MakeIDTAttr(DescriptorType::kInterruptGate, 0),
-                 reinterpret_cast<uint64_t>(IntHandlerXHCI),
-                 cs );
-    Log( kDebug, "LoadIDT: size(%d), addr(%p)\n", sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
-    PrintIDTEntry( InterruptVector::kXHCI );
-    LoadIDT( sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
-
-    const uint8_t bsp_local_apic_id = *(reinterpret_cast<const uint32_t*>(0xFEE00020)) >> 24;
-    Log( kDebug, "BSP local apic id: (%d)\n", bsp_local_apic_id );
-    pci::ConfigureMSIFixedDestination(
-        *g_xHC_Device,
-        bsp_local_apic_id,
-        pci::MSITriggerMode::k_Level,
-        pci::MSIDeliveryMode::k_Fixed,
-        InterruptVector::kXHCI,
-        0
-    );
-
-    uint64_t xhc_mmio_base = Read_xHC_Bar();
-
-    usb::xhci::Controller xhc { xhc_mmio_base };
-    g_xHC_Controller = &xhc;
-    Log( kDebug, "xHC MMIO Base : %llx\n", xhc_mmio_base );
-    Init_XHCI_Controller( xhc );
-
-    usb::HIDMouseDriver::default_observer = MouseObserver;
-    for( int i = 1; i <= xhc.MaxPorts(); ++i ){
-        auto port = xhc.PortAt(i);
-        Log( kDebug, "Port %d : IsConnected=%d\n", i, port.IsConnected() );
-
-        if( port.IsConnected() ){
-            auto err = ConfigurePort( xhc, port );
-            if( err ){
-                Log( kDebug, "Failed to configure port: %s at %s:%d\n",
-                     err.Name(), err.File(), err.Line() );
-            }
-        }
-    }
-
+    pci::InitializePCI();
+    InitializeInterrupt();
+    InitializeMouse();
     ShowMemoryType( &memory_map );
 
     while(1){
@@ -267,208 +200,6 @@ static void ShowMemoryType( const MemoryMap* memory_map )
                 desc->attribute );
         }
     }
-}
-
-static void SearchIntelxHC()
-{
-    auto& pci_mgr = pci::ConfigurationArea::Instance();
-    g_xHC_Device = nullptr;
-
-    const auto& devices = pci_mgr.GetDevices();
-    int device_num = pci_mgr.GetDeviceNum();
-    for( int i = 0; i < device_num; ++i ){
-        const auto& dev = devices[i];
-        if( dev.ClassCode.Match( 0x0cu, 0x03u, 0x30u ) ){
-            g_xHC_Device = &devices[i];
-            if( pci_mgr.ReadVendorID(*g_xHC_Device) == 0x8086 ){
-                break;
-            }
-        }
-    }
-
-    if( g_xHC_Device ){
-        const auto& classcode = g_xHC_Device->ClassCode;
-        Log( kDebug, "xHC has been found: %d.%d.%d.\n",
-             classcode.Base(), classcode.Sub(), classcode.Interface() );
-    }
-}
-
-static uint64_t Read_xHC_Bar()
-{
-    auto xhc_bar = pci::ConfigurationArea::Instance().ReadBAR( *g_xHC_Device, 0 );
-    if( !xhc_bar.error ){
-        Log( kDebug, "Read xHC Bar failed.\n", xhc_bar.error.Name() );
-    }
-    return xhc_bar.value & ~static_cast<uint64_t>(0xF);
-}
-
-static void Init_XHCI_Controller( usb::xhci::Controller& controller )
-{
-    if( pci::ConfigurationArea::Instance().ReadVendorID( *g_xHC_Device ) ){
-        SwitchEhci2Xhci( *g_xHC_Device );
-    }
-
-    auto err = controller.Initialize();
-    Log( kDebug, "xhc.Initialize: %s\n", err.Name() );
-
-    Log( kDebug, "xHC starting.\n" );
-    controller.Run();
-}
-
-static void SwitchEhci2Xhci( const pci::Device& xhc_dev )
-{
-    auto& pci_mgr = pci::ConfigurationArea::Instance();
-    bool intel_ehc_exist = false;
-
-    const auto& devices = pci_mgr.GetDevices();
-    int device_num = pci_mgr.GetDeviceNum();
-    for( int i = 0; i < device_num; ++i ){
-        // classcode = EHCI 
-        if( devices[i].ClassCode.Match( 0x0Cu, 0x03u, 0x20u ) ){
-            intel_ehc_exist = true;
-            break;
-        }
-    }
-
-    if( !intel_ehc_exist ){
-        return;
-    }
-
-
-    uint32_t superspeed_ports = pci_mgr.ReadConfReg( xhc_dev, 0xDC );   // USB3PRM
-    pci_mgr.WriteConfReg( xhc_dev, 0xD8, superspeed_ports );            // USB3_PSSEN
-    uint32_t ehci2xhci_ports  = pci_mgr.ReadConfReg( xhc_dev, 0xD4 );   // XUSB2PRM
-    pci_mgr.WriteConfReg( xhc_dev, 0xD0, ehci2xhci_ports );             // XUSB2PR
-
-    Log( kDebug, "SwitchEhci2Xhci: SS = %02, xHCI = %02x\n",
-         superspeed_ports, ehci2xhci_ports );
-}
-
-static void MouseObserver( uint8_t buttons, int8_t displacement_x, int8_t displacement_y )
-{
-    static unsigned int s_MouseDragLayerID = 0;
-    static uint8_t s_PreviousButtons = 0;
-
-    const auto oldpos = g_MousePosition;
-
-    auto newpos = g_MousePosition + Vector2<int>( displacement_x, displacement_y );
-    newpos = ElementMin( newpos, g_ScreenSize + Vector2<int>(-1, -1) );
-    g_MousePosition = ElementMax( newpos, Vector2<int>(0, 0) );
-
-    const auto posdiff = g_MousePosition - oldpos;
-
-    g_LayerManager->Move( g_MouseLayerID, g_MousePosition );
-
-    const bool previous_left_pressed = (s_PreviousButtons & 0x01);
-    const bool left_pressed = (buttons & 0x01);
-
-    if( !previous_left_pressed && left_pressed ){
-        auto layer = g_LayerManager->FindLayerByPosition( g_MousePosition, g_MouseLayerID );
-        if( layer && layer->IsDraggable() ){
-            s_MouseDragLayerID = layer->ID();
-        }
-    }
-    else if( previous_left_pressed && left_pressed ){
-        if( s_MouseDragLayerID > 0 ){
-            g_LayerManager->MoveRelative( s_MouseDragLayerID, posdiff );
-        }
-    }
-    else if( previous_left_pressed && !left_pressed ){
-        s_MouseDragLayerID = 0;
-    }
-
-    s_PreviousButtons = buttons;
-}
-
-static void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
-{
-    const int k_FrameWidth = config.HorizontalResolution;
-    const int k_FrameHeight = config.VerticalResolution;
-
-    auto bg_window = std::make_shared<Window>( k_FrameWidth, k_FrameHeight, config.PixelFormat );
-    auto bg_writer = bg_window->Writer();
-
-    DrawDesktop( *bg_writer );
-
-    auto mouse_window = std::make_shared<Window>( k_MouseCursorWidth, k_MouseCursorHeight, config.PixelFormat );
-    mouse_window->SetTransparentColor( k_MouseTransparentColor );
-    DrawMouseCursor( *mouse_window->Writer(), {0, 0} );
-
-    g_MainWindow = std::make_shared<Window>(
-        160, 52, config.PixelFormat
-    );
-    DrawWindow( *g_MainWindow->Writer(), "Hello window" );
-
-    auto console_window = std::make_shared<Window>(
-        Console::sk_Columns * 8, Console::sk_Rows * 16, config.PixelFormat 
-    );
-    g_Console->SetWindow( console_window );
-
-    g_LayerManager = new LayerManager();
-    g_LayerManager->SetWriter( screen );
-
-    auto bglayer_id = g_LayerManager->NewLayer()
-        .SetWindow( bg_window )
-        .Move( {0, 0} )
-        .ID();
-    auto mouse_layer_id = g_LayerManager->NewLayer()
-        .SetWindow( mouse_window )
-        .Move( g_MousePosition )
-        .ID();
-    auto main_window_layer_id = g_LayerManager->NewLayer()
-        .SetWindow( g_MainWindow )
-        .SetDraggable( true )
-        .Move( {300, 100} )
-        .ID();
-    g_Console->SetLayerID( g_LayerManager->NewLayer()
-        .SetWindow( console_window )
-        .Move( {0, 0} )
-        .ID()
-    );
-
-    g_LayerManager->UpDown( bglayer_id, 0 );
-    g_LayerManager->UpDown( mouse_layer_id, 1 );
-    g_LayerManager->UpDown( main_window_layer_id, 1 );
-    g_LayerManager->Draw( bglayer_id );
-
-    g_MouseLayerID = mouse_layer_id;
-    g_MainWindowLayerID = main_window_layer_id;
-}
-
-static void DrawDesktop( IPixelWriter& writer )
-{
-    const auto width = writer.Width();
-    const auto height = writer.Height();
-    FillRectAngle(writer,
-                    {0, 0},
-                    {width, height - 50},
-                    sk_DesktopBGColor );
-    FillRectAngle(writer,
-                    {0, height - 50},
-                    {width, 50},
-                    {1, 8, 17});
-    FillRectAngle(writer,
-                    {0, height - 50},
-                    {width / 5, 50},
-                    {80, 80, 80});
-    FillRectAngle(writer,
-                    {10, height - 40},
-                    {30, 30},
-                    {160, 160, 160});
-}
-
-static int Printk( const char* format, ... )
-{
-    va_list ap;
-    int result;
-    char s[1024];
-
-    va_start( ap, format );
-    result = vsprintf( s, format, ap );
-    va_end( ap );
-
-    g_Console->PutString( s );
-    return result;
 }
 
 extern "C" void __cxa_pure_virtual() {

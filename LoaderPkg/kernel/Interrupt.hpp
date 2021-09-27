@@ -71,6 +71,8 @@ constexpr InterruptDescriptorAttribute MakeIDTAttr(
     return attr;
 }
 
+void InitializeInterrupt();
+
 __attribute__((interrupt))
 void IntHandlerXHCI( InterruptFrame* frame );
 

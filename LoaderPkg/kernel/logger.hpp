@@ -13,6 +13,11 @@ enum LogLevel {
   kDebug = 7,
 };
 
+/**
+ * @brief コンソールへのログ出力
+ */
+int Printk( const char* format, ... );
+
 /** @brief グローバルなログ優先度のしきい値を変更する．
  *
  * グローバルなログ優先度のしきい値を level に設定する．

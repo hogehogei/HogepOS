@@ -2,7 +2,9 @@
 // include files
 //
 #include "Layer.hpp"
-
+#include "Global.hpp"
+#include "Graphic.hpp"
+#include "MouseCursor.hpp"
 
 //
 // constant
@@ -229,4 +231,59 @@ Layer* LayerManager::FindLayer( LayerID id )
     }
 
     return itr->get();
+}
+
+void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
+{
+    const int k_FrameWidth = config.HorizontalResolution;
+    const int k_FrameHeight = config.VerticalResolution;
+
+    auto bg_window = std::make_shared<Window>( k_FrameWidth, k_FrameHeight, config.PixelFormat );
+    auto bg_writer = bg_window->Writer();
+
+    DrawDesktop( *bg_writer );
+
+    auto mouse_window = std::make_shared<Window>( k_MouseCursorWidth, k_MouseCursorHeight, config.PixelFormat );
+    mouse_window->SetTransparentColor( k_MouseTransparentColor );
+    DrawMouseCursor( *mouse_window->Writer(), {0, 0} );
+
+    g_MainWindow = std::make_shared<Window>(
+        160, 52, config.PixelFormat
+    );
+    DrawWindow( *g_MainWindow->Writer(), "Hello window" );
+
+    auto console_window = std::make_shared<Window>(
+        Console::sk_Columns * 8, Console::sk_Rows * 16, config.PixelFormat 
+    );
+    g_Console->SetWindow( console_window );
+
+    g_LayerManager = new LayerManager();
+    g_LayerManager->SetWriter( screen );
+
+    auto bglayer_id = g_LayerManager->NewLayer()
+        .SetWindow( bg_window )
+        .Move( {0, 0} )
+        .ID();
+    auto mouse_layer_id = g_LayerManager->NewLayer()
+        .SetWindow( mouse_window )
+        .Move( g_MousePosition )
+        .ID();
+    auto main_window_layer_id = g_LayerManager->NewLayer()
+        .SetWindow( g_MainWindow )
+        .SetDraggable( true )
+        .Move( {300, 100} )
+        .ID();
+    g_Console->SetLayerID( g_LayerManager->NewLayer()
+        .SetWindow( console_window )
+        .Move( {0, 0} )
+        .ID()
+    );
+
+    g_LayerManager->UpDown( bglayer_id, 0 );
+    g_LayerManager->UpDown( mouse_layer_id, 1 );
+    g_LayerManager->UpDown( main_window_layer_id, 1 );
+    g_LayerManager->Draw( bglayer_id );
+
+    g_MouseLayerID = mouse_layer_id;
+    g_MainWindowLayerID = main_window_layer_id;
 }

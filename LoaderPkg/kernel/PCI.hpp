@@ -159,4 +159,6 @@ namespace pci
         DeviceArray  m_Devices;            //! 認識したデバイス記録先
         int m_NumDevice;                   //! 認識したデバイス数
     };
+
+    void InitializePCI();
 }

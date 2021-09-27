@@ -99,3 +99,5 @@ private:
     std::vector<Layer*>   m_LayerStack;
     LayerID m_LatestID;
 };
+
+void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen );
