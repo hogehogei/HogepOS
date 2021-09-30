@@ -4,6 +4,7 @@ struct Message
 {
     enum Type {
         k_InterruptXHCI,
+        k_InterruptLAPICTimer,
     } type;
 
     Message() = default;

@@ -112,6 +112,9 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
                 }
             }
             break;
+        case Message::k_InterruptLAPICTimer:
+            Printk( "Timer interrupt\n" );
+            break;
         default:
             Log( kError, "Unknown message type: %d\n", msg.type );
         }

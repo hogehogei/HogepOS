@@ -42,6 +42,7 @@ class InterruptVector {
 public:
     enum Number {
         kXHCI = 0x40,
+        kAPICTimer = 0x41,
     };
 };
 
@@ -75,6 +76,9 @@ void InitializeInterrupt();
 
 __attribute__((interrupt))
 void IntHandlerXHCI( InterruptFrame* frame );
+
+__attribute__((interrupt))
+void IntHandlerLAPICTimer( InterruptFrame* frame );
 
 void NotifyEndOfInterrupt();
 void SetIDTEntry( InterruptDescriptor& desc, 

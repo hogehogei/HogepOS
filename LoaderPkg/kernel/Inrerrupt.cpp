@@ -19,12 +19,14 @@ void InitializeInterrupt()
                  MakeIDTAttr(DescriptorType::kInterruptGate, 0),
                  reinterpret_cast<uint64_t>(IntHandlerXHCI),
                  cs );
-    Log( kDebug, "LoadIDT: size(%d), addr(%p)\n", sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
+    SetIDTEntry( g_IDT[InterruptVector::kAPICTimer],
+                 MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+                 reinterpret_cast<uint64_t>(IntHandlerLAPICTimer),
+                 cs );
     PrintIDTEntry( InterruptVector::kXHCI );
     LoadIDT( sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
 
     const uint8_t bsp_local_apic_id = *(reinterpret_cast<const uint32_t*>(0xFEE00020)) >> 24;
-    Log( kDebug, "BSP local apic id: (%d)\n", bsp_local_apic_id );
     pci::ConfigureMSIFixedDestination(
         *g_xHC_Device,
         bsp_local_apic_id,
@@ -39,6 +41,13 @@ __attribute__((interrupt))
 void IntHandlerXHCI( InterruptFrame* frame )
 {
     g_EventQueue.Push( Message(Message::k_InterruptXHCI) );
+    NotifyEndOfInterrupt();
+}
+
+__attribute__((interrupt))
+void IntHandlerLAPICTimer( InterruptFrame* frame )
+{
+    g_EventQueue.Push( Message(Message::k_InterruptLAPICTimer) );
     NotifyEndOfInterrupt();
 }
 

@@ -280,8 +280,9 @@ void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
     );
 
     g_LayerManager->UpDown( bglayer_id, 0 );
-    g_LayerManager->UpDown( mouse_layer_id, 1 );
-    g_LayerManager->UpDown( main_window_layer_id, 1 );
+    g_LayerManager->UpDown( g_Console->LayerID(), 1 );
+    g_LayerManager->UpDown( main_window_layer_id, 2 );
+    g_LayerManager->UpDown( mouse_layer_id, 3 );
     g_LayerManager->Draw( bglayer_id );
 
     g_MouseLayerID = mouse_layer_id;
