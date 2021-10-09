@@ -2,14 +2,21 @@
 
 struct Message
 {
-    enum Type {
+    enum EventType {
         k_InterruptXHCI,
         k_InterruptLAPICTimer,
-    } type;
+        k_TimerTimeout,
+    } Type;
+
+    union {
+        struct {
+            int Value;
+        } Timer;
+    } Arg;
 
     Message() = default;
     ~Message() = default;
     
-    Message( Message::Type value )
-     : type(value) {}
+    Message( EventType value )
+     : Type( value ) {}
 };

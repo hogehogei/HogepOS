@@ -73,7 +73,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
 
     InitMemoryManager( &memory_map );
     InitializeHeap( *g_MemManager );
-    SetLogLevel( kInfo );
+    SetLogLevel( kError );
 
     g_MousePosition = Vector2<int>( 100, 100 );
     g_ScreenSize = Vector2<int>( config.HorizontalResolution, config.VerticalResolution );
@@ -83,6 +83,10 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
     InitializeInterrupt();
     InitializeMouse();
     ShowMemoryType( &memory_map );
+
+    TimerManager::Instance().Initialize();
+    TimerManager::Instance().AddTimer( Timer(100, 1) );
+    TimerManager::Instance().AddTimer( Timer(200, -1) );
 
     while(1){
         ++s_Count;
@@ -101,7 +105,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
         g_EventQueue.Pop();
         __asm__("sti");
 
-        switch( msg.type ){
+        switch( msg.Type ){
         case Message::k_InterruptXHCI:
 
             while( g_xHC_Controller->PrimaryEventRing()->HasFront() ){
@@ -113,10 +117,23 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
             }
             break;
         case Message::k_InterruptLAPICTimer:
-            Printk( "Timer interrupt\n" );
+            //Printk( "Timer interrupt\n" );
+            break;
+        case Message::k_TimerTimeout:
+            Printk( "Timer: value = %d\n", msg.Arg.Timer.Value );
+            if( msg.Arg.Timer.Value > 0 ){
+                TimerManager::Instance().AddTimer( Timer(
+                    100, msg.Arg.Timer.Value + 1
+                ));
+            }
+            else {
+                TimerManager::Instance().AddTimer( Timer(
+                    250, msg.Arg.Timer.Value - 1
+                ));
+            }
             break;
         default:
-            Log( kError, "Unknown message type: %d\n", msg.type );
+            Log( kError, "Unknown message type: %d\n", msg.Type );
         }
     }
 }

@@ -7,6 +7,7 @@
 #include "Event.hpp"
 #include "PCI.hpp"
 #include "MSI.hpp"
+#include "Timer.hpp"
 
 #include "logger.hpp"
 #include "asmfunc.h"
@@ -47,7 +48,7 @@ void IntHandlerXHCI( InterruptFrame* frame )
 __attribute__((interrupt))
 void IntHandlerLAPICTimer( InterruptFrame* frame )
 {
-    g_EventQueue.Push( Message(Message::k_InterruptLAPICTimer) );
+    LAPICTimerOnInterrupt();
     NotifyEndOfInterrupt();
 }
 
