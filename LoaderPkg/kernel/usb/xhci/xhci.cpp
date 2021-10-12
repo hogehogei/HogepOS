@@ -2,6 +2,10 @@
 
 #include <cstring>
 #include "logger.hpp"
+#include "Global.hpp"
+#include "PCI.hpp"
+#include "MSI.hpp"
+#include "Interrupt.hpp"
 #include "usb/setupdata.hpp"
 #include "usb/device.hpp"
 #include "usb/descriptor.hpp"
@@ -309,7 +313,31 @@ namespace {
              !r.bits.hc_os_owned_semaphore);
     Log(kDebug, "OS has owned xHC\n");
   }
-}
+
+  void SwitchEhci2Xhci(const pci::Device& xhc_dev) {
+    bool intel_ehc_exist = false;
+    auto& instance = pci::ConfigurationArea::Instance();
+    auto& devices = instance.GetDevices();
+    
+    for (int i = 0; i < instance.GetDeviceNum(); ++i) {
+      if (devices[i].ClassCode.Match(0x0cu, 0x03u, 0x20u) /* EHCI */ &&
+          0x8086 == instance.ReadVendorID(devices[i])) {
+        intel_ehc_exist = true;
+        break;
+      }
+    }
+    if (!intel_ehc_exist) {
+      return;
+    }
+
+    uint32_t superspeed_ports = instance.ReadConfReg(xhc_dev, 0xdc); // USB3PRM
+    instance.WriteConfReg(xhc_dev, 0xd8, superspeed_ports); // USB3_PSSEN
+    uint32_t ehci2xhci_ports = instance.ReadConfReg(xhc_dev, 0xd4); // XUSB2PRM
+    instance.WriteConfReg(xhc_dev, 0xd0, ehci2xhci_ports); // XUSB2PR
+    Log(kDebug, "SwitchEhci2Xhci: SS = %02, xHCI = %02x\n",
+        superspeed_ports, ehci2xhci_ports);
+  }
+} // namespace
 
 namespace usb::xhci {
 
@@ -503,5 +531,82 @@ namespace usb::xhci {
     xhc.PrimaryEventRing()->Pop();
 
     return err;
+  }
+
+  Controller* controller;
+
+  void Initialize() {
+    auto& pci_mgr = pci::ConfigurationArea::Instance();
+    auto& devices = pci_mgr.GetDevices();
+
+    // Intel 製を優先して xHC を探す
+    pci::Device* xhc_dev = nullptr;
+    
+    for (int i = 0; i < pci_mgr.GetDeviceNum(); ++i) {
+      if (devices[i].ClassCode.Match(0x0cu, 0x03u, 0x30u)) {
+        xhc_dev = &devices[i];
+
+        if (0x8086 == pci_mgr.ReadVendorID(*xhc_dev)) {
+          break;
+        }
+      }
+    }
+
+    if (xhc_dev) {
+      Log(kInfo, "xHC has been found: %d.%d.%d\n",
+          xhc_dev->Bus, xhc_dev->Device, xhc_dev->Function);
+    } else {
+      Log(kError, "xHC has not been found\n");
+      exit(1);
+    }
+
+    const uint8_t bsp_local_apic_id =
+      *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+    pci::ConfigureMSIFixedDestination(
+        *xhc_dev, bsp_local_apic_id,
+        pci::MSITriggerMode::k_Level, pci::MSIDeliveryMode::k_Fixed,
+        InterruptVector::kXHCI, 0);
+
+    const WithError<uint64_t> xhc_bar = pci_mgr.ReadBAR(*xhc_dev, 0);
+    Log(kDebug, "ReadBar: %s\n", xhc_bar.error.Name());
+    const uint64_t xhc_mmio_base = xhc_bar.value & ~static_cast<uint64_t>(0xf);
+    Log(kDebug, "xHC mmio_base = %08lx\n", xhc_mmio_base);
+
+    usb::xhci::controller = new Controller{xhc_mmio_base};
+    g_xHC_Controller = usb::xhci::controller;
+    Controller& xhc = *usb::xhci::controller;
+
+    if (0x8086 == pci_mgr.ReadVendorID(*xhc_dev)) {
+      SwitchEhci2Xhci(*xhc_dev);
+    }
+    if (auto err = xhc.Initialize()) {
+      Log(kError, "xhc initialize failed: %s\n", err.Name());
+      exit(1);
+    }
+
+    Log(kInfo, "xHC starting\n");
+    xhc.Run();
+
+    for (int i = 1; i <= xhc.MaxPorts(); ++i) {
+      auto port = xhc.PortAt(i);
+      Log(kDebug, "Port %d: IsConnected=%d\n", i, port.IsConnected());
+
+      if (port.IsConnected()) {
+        if (auto err = ConfigurePort(xhc, port)) {
+          Log(kError, "failed to configure port: %s at %s:%d\n",
+              err.Name(), err.File(), err.Line());
+          continue;
+        }
+      }
+    }
+  }
+
+  void ProcessEvents() {
+    while (controller->PrimaryEventRing()->HasFront()) {
+      if (auto err = ProcessEvent(*controller)) {
+        Log(kError, "Error while ProcessEvent: %s at %s:%d\n",
+            err.Name(), err.File(), err.Line());
+      }
+    }
   }
 }

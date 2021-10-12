@@ -10,9 +10,11 @@
 #include "Timer.hpp"
 #include "PCI.hpp"
 #include "MSI.hpp"
+#include "ACPI.hpp"
 #include "Interrupt.hpp"
 #include "Mouse.hpp"
 #include "MouseCursor.hpp"
+#include "Keyboard.hpp"
 #include "PixelWriter.hpp"
 #include "Font.hpp"
 #include "Console.hpp"
@@ -55,12 +57,15 @@ static void ShowMemoryType( const MemoryMap* memory_map );
 
 
 
-extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const MemoryMap* memory_map_in )
+extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, 
+                                    const MemoryMap* memory_map_in,
+                                    const void* acpi_table )
 {
     FrameBufferConfig config( *config_in );
     MemoryMap memory_map( *memory_map_in );
 
     SetupMemory();
+    acpi::Initialize( *reinterpret_cast<const acpi::RSDP*>(acpi_table) );
     InitializeLAPICTimer();
 
     g_PixelWriter = GetPixelWriter( config );
@@ -73,18 +78,19 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
 
     InitMemoryManager( &memory_map );
     InitializeHeap( *g_MemManager );
-    SetLogLevel( kError );
+    SetLogLevel( kInfo );
 
     g_MousePosition = Vector2<int>( 100, 100 );
     g_ScreenSize = Vector2<int>( config.HorizontalResolution, config.VerticalResolution );
     CreateLayer( config, &screen );
 
-    pci::InitializePCI();
     InitializeInterrupt();
+    pci::InitializePCI();
+    usb::xhci::Initialize();
     InitializeMouse();
+    Keyboard::InitializeKeyboard();
     ShowMemoryType( &memory_map );
 
-    TimerManager::Instance().Initialize();
     TimerManager::Instance().AddTimer( Timer(100, 1) );
     TimerManager::Instance().AddTimer( Timer(200, -1) );
 
@@ -120,16 +126,10 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, const Me
             //Printk( "Timer interrupt\n" );
             break;
         case Message::k_TimerTimeout:
-            Printk( "Timer: value = %d\n", msg.Arg.Timer.Value );
-            if( msg.Arg.Timer.Value > 0 ){
-                TimerManager::Instance().AddTimer( Timer(
-                    100, msg.Arg.Timer.Value + 1
-                ));
-            }
-            else {
-                TimerManager::Instance().AddTimer( Timer(
-                    250, msg.Arg.Timer.Value - 1
-                ));
+            break;
+        case Message::k_KeyPush:
+            if( msg.Arg.Keyboard.Key.Ascii() != 0 ){
+                Printk( "%c", msg.Arg.Keyboard.Key.Ascii() );
             }
             break;
         default:

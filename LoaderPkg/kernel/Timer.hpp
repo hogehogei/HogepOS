@@ -8,6 +8,12 @@
 
 #include "Event.hpp"
 
+
+//
+// constants
+// 
+constexpr int k_TimerFreq = 100;
+
 class Timer
 {
 public:
@@ -23,37 +29,21 @@ public:
 
 private:
 
+    Timer();
+
     uint64_t m_Timeout;
     int m_Value;
 };
 
-class TimerManagerImpl
-{
-    friend class TimerManager;
-private:
-
-    TimerManagerImpl();
-
-    void Tick();
-    uint64_t CurrentTick() const;
-    void AddTimer( const Timer& timer );
-
-    volatile uint64_t m_Tick;
-    std::priority_queue<Timer> m_Timers;
-};
-
-class TimerManagerImpl;
 class TimerManager
 {
 public:
 
-    TimerManager();
     ~TimerManager() = default;
 
     TimerManager( TimerManager& ) = delete;
     TimerManager& operator=( TimerManager& ) = delete;
 
-    bool Initialize();
     static TimerManager& Instance();
 
     void Tick();
@@ -62,11 +52,17 @@ public:
 
 private:
 
-    TimerManagerImpl* m_Impl;
+    TimerManager();
+
+    static TimerManager* s_Instance;
+    
+    volatile uint64_t m_Tick;
+    std::priority_queue<Timer> m_Timers;
 };
 
 void InitializeLAPICTimer();
 void StartLAPICTimer();
+uint32_t LAPICTimerElapsed();
 void StopLAPICTimer();
 
 void LAPICTimerOnInterrupt();

@@ -26,16 +26,6 @@ void InitializeInterrupt()
                  cs );
     PrintIDTEntry( InterruptVector::kXHCI );
     LoadIDT( sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
-
-    const uint8_t bsp_local_apic_id = *(reinterpret_cast<const uint32_t*>(0xFEE00020)) >> 24;
-    pci::ConfigureMSIFixedDestination(
-        *g_xHC_Device,
-        bsp_local_apic_id,
-        pci::MSITriggerMode::k_Level,
-        pci::MSIDeliveryMode::k_Fixed,
-        InterruptVector::kXHCI,
-        0
-    );
 }
 
 __attribute__((interrupt))

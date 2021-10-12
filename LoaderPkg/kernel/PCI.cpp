@@ -21,7 +21,6 @@ namespace pci
 //
 // static function declaration
 // 
-static void SearchIntelxHC();
 
 //
 // funcion definitions
@@ -181,6 +180,12 @@ const ConfigurationArea::DeviceArray& ConfigurationArea::GetDevices() const
     return m_Devices;
 }
 
+ConfigurationArea::DeviceArray& ConfigurationArea::GetDevices()
+{
+    return m_Devices;
+}
+
+
 int ConfigurationArea::GetDeviceNum() const
 {
     return m_NumDevice;
@@ -252,30 +257,6 @@ Error::Code ConfigurationArea::AddDevice( uint8_t bus, uint8_t device, uint8_t f
     return Error::Code::kSuccess;
 }
 
-static void SearchIntelxHC()
-{
-    auto& pci_mgr = pci::ConfigurationArea::Instance();
-    g_xHC_Device = nullptr;
-
-    const auto& devices = pci_mgr.GetDevices();
-    int device_num = pci_mgr.GetDeviceNum();
-    for( int i = 0; i < device_num; ++i ){
-        const auto& dev = devices[i];
-        if( dev.ClassCode.Match( 0x0cu, 0x03u, 0x30u ) ){
-            g_xHC_Device = &devices[i];
-            if( pci_mgr.ReadVendorID(*g_xHC_Device) == 0x8086 ){
-                break;
-            }
-        }
-    }
-
-    if( g_xHC_Device ){
-        const auto& classcode = g_xHC_Device->ClassCode;
-        Log( kDebug, "xHC has been found: %d.%d.%d.\n",
-             classcode.Base(), classcode.Sub(), classcode.Interface() );
-    }
-}
-
 void InitializePCI()
 {
     pci::ConfigurationArea().Instance().ScanAllBus();
@@ -291,7 +272,6 @@ void InitializePCI()
              dev.Bus, dev.Device, dev.Function,
              vendor_id, class_code, dev.HeaderType );
     }
-    SearchIntelxHC();
 }
 
 } // namespace pci

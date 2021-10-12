@@ -17,13 +17,15 @@
 //
 namespace
 {
-    constexpr uint32_t k_MaxcCount = 0xFFFFFFFFu;
+    constexpr uint32_t k_MaxCount = 0xFFFFFFFFu;
     constexpr uint32_t k_InitialCount = 0x1000000u;
     volatile uint32_t* lvt_timer = reinterpret_cast<uint32_t*>(0xFEE00320);
     volatile uint32_t* initial_count = reinterpret_cast<uint32_t*>(0xFEE00380);
     volatile uint32_t* current_count = reinterpret_cast<uint32_t*>(0xFEE00390);
     volatile uint32_t* divide_config = reinterpret_cast<uint32_t*>(0xFEE003E0);
 }
+
+TimerManager* TimerManager::s_Instance = nullptr;
 
 //
 // static function declaration
@@ -39,6 +41,11 @@ Timer::Timer( uint32_t timeout, int value )
 {
     m_Timeout = TimerManager::Instance().CurrentTick() + timeout;
 }
+
+Timer::Timer()
+    : m_Timeout( std::numeric_limits<uint64_t>::max() ),
+      m_Value( 0 )
+{}
 
 uint64_t Timer::Timeout() const
 {
@@ -57,20 +64,26 @@ bool Timer::operator<( const Timer& rhs ) const
 
 Timer Timer::InfiniteTimer() 
 {
-    Timer t( 0, 0 );
-    t.m_Timeout = std::numeric_limits<uint64_t>::max();
-    t.m_Value = 0;
-
-    return t;
+    return Timer();
 }
 
-TimerManagerImpl::TimerManagerImpl()
-    : m_Tick( 0 )
+TimerManager::TimerManager()
+    : m_Tick( 0 ),
+      m_Timers()
 {
     m_Timers.push( Timer::InfiniteTimer() );
 }
 
-void TimerManagerImpl::Tick()
+TimerManager& TimerManager::Instance()
+{
+    if( !s_Instance ){
+        s_Instance = new TimerManager();
+    }
+
+    return *s_Instance;
+}
+
+void TimerManager::Tick()
 {
     ++m_Tick;
 
@@ -91,7 +104,7 @@ void TimerManagerImpl::Tick()
     }
 }
 
-uint64_t TimerManagerImpl::CurrentTick() const
+uint64_t TimerManager::CurrentTick() const
 {
     uint64_t tick = 0;
 
@@ -102,59 +115,39 @@ uint64_t TimerManagerImpl::CurrentTick() const
     return tick;
 }
 
-void TimerManagerImpl::AddTimer( const Timer& timer )
+void TimerManager::AddTimer( const Timer& timer )
 {
     m_Timers.push( timer );
 }
 
 
-TimerManager::TimerManager()
-    : m_Impl( nullptr )
-{}
-
-bool TimerManager::Initialize()
-{
-    m_Impl = new TimerManagerImpl();
-
-    return true;
-}
-
-TimerManager& TimerManager::Instance()
-{
-    static TimerManager s_Instance;
-    return s_Instance;
-}
-
-void TimerManager::Tick()
-{
-    m_Impl->Tick();
-}
-
-uint64_t TimerManager::CurrentTick() const
-{
-    if( m_Impl ){
-        return m_Impl->CurrentTick();
-    }
-    return 0;
-}
-
-void TimerManager::AddTimer( const Timer& timer )
-{
-    if( m_Impl ){
-        m_Impl->AddTimer( timer );
-    }
-}
-
 void InitializeLAPICTimer()
 {
-    *divide_config = 0b1011;                                      // divide 1:1
+    *divide_config = 0b1011;    // divide 1:1
+    *lvt_timer = 0b001 << 16;   // masked, one-shot
+
+    StartLAPICTimer();
+    acpi::WaitMillSeconds( 100 );
+    const auto elapsed = LAPICTimerElapsed();    
+    StopLAPICTimer();
+
+    // 1秒経過時間を計算
+    g_LApicTimerFreq = static_cast<unsigned long>(elapsed) * 10;
+
+    // 10ms 毎に割り込み発生となるように設定
+    *divide_config = 0b1011;    // divide 1:1
     *lvt_timer = (0b010 << 16) | InterruptVector::kAPICTimer;     // not-masked, periodic
-    *initial_count = k_InitialCount;
+    *initial_count = g_LApicTimerFreq / k_TimerFreq;
 }
 
 void StartLAPICTimer()
 {
-    *initial_count = k_InitialCount;
+    *initial_count = k_MaxCount;
+}
+
+uint32_t LAPICTimerElapsed()
+{
+    return k_MaxCount - *current_count;
 }
 
 void StopLAPICTimer()

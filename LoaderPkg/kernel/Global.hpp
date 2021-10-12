@@ -6,6 +6,7 @@
 #include "usb/xhci/xhci.hpp"
 
 #include "PCI.hpp"
+#include "ACPI.hpp"
 #include "Interrupt.hpp"
 #include "Event.hpp"
 #include "RingBuffer.hpp"
@@ -15,6 +16,7 @@
 #include "Layer.hpp"
 #include "Console.hpp"
 #include "MouseCursor.hpp"
+
 #endif
 
 #ifdef    GLOBAL_VARIABLE_DEFINITION
@@ -41,7 +43,6 @@ EXTERN Console* g_Console;
 EXTERN MouseCursor* g_Cursor;
 EXTERN BitmapMemoryManager* g_MemManager;
 
-EXTERN const pci::Device* g_xHC_Device;
 EXTERN usb::xhci::Controller* g_xHC_Controller;
 EXTERN LayerManager* g_LayerManager;
 EXTERN int g_MouseLayerID;
@@ -52,4 +53,7 @@ EXTERN Vector2<int> g_MousePosition;
 EXTERN Vector2<int> g_ScreenSize;
 EXTERN std::array<InterruptDescriptor, 256> g_IDT;
 EXTERN RingBuffer<Message, 32> g_EventQueue;
+
+EXTERN const acpi::FADT* g_FADT;
+EXTERN unsigned long g_LApicTimerFreq;
 #endif

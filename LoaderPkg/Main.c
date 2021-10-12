@@ -3,7 +3,7 @@
 #include <Library/UefiBootServicesTableLib.h> 
 #include <Library/PrintLib.h>
 #include <Library/MemoryAllocationLib.h>
-#include  <Library/BaseMemoryLib.h>
+#include <Library/BaseMemoryLib.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/SimpleFileSystem.h>
 #include <Protocol/DiskIo2.h>
@@ -92,14 +92,23 @@ EFI_STATUS EFIAPI UefiMain( EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_ta
         break;
     }
 
+    VOID* acpi_table = NULL;
+    for( UINTN i = 0; i < system_table->NumberOfTableEntries; ++i ){
+        if( CompareGuid( &gEfiAcpiTableGuid, 
+                         &system_table->ConfigurationTable[i].VendorGuid ) ){
+            acpi_table = system_table->ConfigurationTable[i].VendorTable;
+            break;
+        }
+    }
+
     Print( L"Jump to entry point.\n" );
     StopBootServices( image_handle, memmap );
 
     UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
-    typedef void EntryPointType( const FrameBufferConfig*, const MemoryMap* );
+    typedef void EntryPointType( const FrameBufferConfig*, const MemoryMap*, const VOID* );
     EntryPointType* entry_point = (EntryPointType*)entry_addr;
 
-    entry_point( &config, &memmap );
+    entry_point( &config, &memmap, acpi_table );
 
     while( 1 );
     return EFI_SUCCESS;

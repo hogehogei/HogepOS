@@ -135,6 +135,7 @@ namespace pci
         Error::Code ScanAllBus();
 
         const DeviceArray& GetDevices() const;
+        DeviceArray& GetDevices();
         int GetDeviceNum() const;
 
     private:
