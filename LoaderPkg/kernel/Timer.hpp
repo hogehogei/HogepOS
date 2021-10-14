@@ -4,6 +4,7 @@
 // include headers
 //
 #include <cstdint>
+#include <limits>
 #include <queue>
 
 #include "Event.hpp"
@@ -13,6 +14,8 @@
 // constants
 // 
 constexpr int k_TimerFreq = 100;
+constexpr int k_TaskTimerPeriod = static_cast<int>(k_TimerFreq * 0.02);
+constexpr int k_TaskTimerValue  = std::numeric_limits<int>::min();
 
 class Timer
 {
@@ -46,7 +49,7 @@ public:
 
     static TimerManager& Instance();
 
-    void Tick();
+    bool Tick();
     uint64_t CurrentTick() const;
     void AddTimer( const Timer& timer );
 

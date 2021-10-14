@@ -6,7 +6,7 @@
 #include "Timer.hpp"
 #include "Interrupt.hpp"
 #include "Global.hpp"
-
+#include "Task.hpp"
 
 //
 // constant
@@ -83,10 +83,11 @@ TimerManager& TimerManager::Instance()
     return *s_Instance;
 }
 
-void TimerManager::Tick()
+bool TimerManager::Tick()
 {
     ++m_Tick;
 
+    bool task_timer_timeout = false;
     while( 1 ){
         const auto& t = m_Timers.top();
 
@@ -95,13 +96,22 @@ void TimerManager::Tick()
         if( t.Timeout() > m_Tick ){
             break;
         }
-
+        
+        // ContextSwitch 用タイマなら
+        if( t.Value() == k_TaskTimerValue ){
+            task_timer_timeout = true;
+            m_Timers.pop();
+            m_Timers.push( Timer( k_TaskTimerPeriod, k_TaskTimerValue ) );
+            continue;
+        }
         Message m( Message::k_TimerTimeout );
         m.Arg.Timer.Value = t.Value();
         g_EventQueue.Push( m );
 
         m_Timers.pop();
     }
+
+    return task_timer_timeout;
 }
 
 uint64_t TimerManager::CurrentTick() const
@@ -157,5 +167,10 @@ void StopLAPICTimer()
 
 void LAPICTimerOnInterrupt()
 {
-    TimerManager::Instance().Tick();
+    bool task_timer_timeout = TimerManager::Instance().Tick();
+    NotifyEndOfInterrupt();
+
+    if( task_timer_timeout ){
+        TaskManager::Instance().SwitchTask();
+    }
 }

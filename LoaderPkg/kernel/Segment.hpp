@@ -23,6 +23,10 @@ union SegmentDescriptor
     } __attribute__((packed)) Bits;
 } __attribute__((packed));
 
+constexpr uint16_t k_KernelCS = 1 << 3;
+constexpr uint16_t k_KernelSS = 2 << 3;
+constexpr uint16_t k_KernelDS = 0;
+
 void SetCodeSegment( SegmentDescriptor& desc, 
                      DescriptorType type,
                      uint32_t descriptor_privilege_level, 

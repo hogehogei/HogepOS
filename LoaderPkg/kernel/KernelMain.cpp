@@ -18,6 +18,7 @@
 #include "PixelWriter.hpp"
 #include "Font.hpp"
 #include "Console.hpp"
+#include "Task.hpp"
 
 #include "asmfunc.h"
 #include "usb/memory.hpp"
@@ -45,7 +46,12 @@ static char s_MemoryManagerBuf[sizeof(BitmapMemoryManager)];
 static char s_String[128];
 static unsigned int s_Count = 0;
 
-alignas(16) uint8_t s_KernelMainStack[2048*1024];
+static std::shared_ptr<Window> s_TaskBWindow;
+static int s_TaskBWindowLayerID;
+
+alignas(16) uint8_t  s_KernelMainStack[2048*1024];
+alignas(16) uint64_t s_TaskB_Stack[1024];
+
 
 //
 // static functions
@@ -54,6 +60,9 @@ static void SetupMemory();
 static void InitMemoryManager( const MemoryMap* memory_map );
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config );
 static void ShowMemoryType( const MemoryMap* memory_map );
+
+static void InitializeTaskBWindow( const FrameBufferConfig& config );
+static void TaskB( uint64_t task_id, int64_t data );
 
 
 
@@ -91,8 +100,13 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     Keyboard::InitializeKeyboard();
     ShowMemoryType( &memory_map );
 
-    TimerManager::Instance().AddTimer( Timer(100, 1) );
-    TimerManager::Instance().AddTimer( Timer(200, -1) );
+    InitializeTaskBWindow( config );
+    InitializeTask();
+    TaskManager::Instance().NewTask().InitContext( TaskB, 45 );
+    //TaskManager::Instance().NewTask().InitContext( TaskB, 45 );
+
+    //TimerManager::Instance().AddTimer( Timer(100, 1) );
+    //TimerManager::Instance().AddTimer( Timer(200, -1) );
 
     while(1){
         ++s_Count;
@@ -142,10 +156,8 @@ static void SetupMemory()
 {
     SetupSegments();
 
-    const uint16_t kernel_cs = 1 << 3;
-    const uint16_t kernel_ss = 2 << 3;
     SetDSAll( 0 );
-    SetCSSS( kernel_cs, kernel_ss );
+    SetCSSS( k_KernelCS, k_KernelSS );
 
     SetupIdentityPageTable();
 }
@@ -219,6 +231,39 @@ static void ShowMemoryType( const MemoryMap* memory_map )
                 desc->physical_start + desc->number_of_pages * 4096 - 1,
                 desc->attribute );
         }
+    }
+}
+
+static void InitializeTaskBWindow( const FrameBufferConfig& config )
+{
+    s_TaskBWindow = std::make_shared<Window>(
+        160, 52, config.PixelFormat
+    );
+
+    DrawWindow( *s_TaskBWindow->Writer(), "TaskBWindow" );
+
+    s_TaskBWindowLayerID = g_LayerManager->NewLayer()
+        .SetWindow( s_TaskBWindow )
+        .SetDraggable( true )
+        .Move( Vector2<int>(100, 100 ) )
+        .ID();
+
+    g_LayerManager->UpDown( s_TaskBWindowLayerID, std::numeric_limits<int>::max() );
+}
+
+static void TaskB( uint64_t task_id, int64_t data )
+{
+    Printk( "TaskB: task_id=%d, data=%d\n", task_id, data );
+
+    char str[128];
+    int count = 0;
+
+    while( 1 ){
+        ++count;
+        sprintf( str, "%010d", count );
+        FillRectAngle( *s_TaskBWindow->Writer(), {24, 28}, { 8*10, 16}, {0xc6, 0xc6, 0xc6} );
+        WriteString( *s_TaskBWindow->Writer(), 24, 28, str, {0, 0, 0} );
+        g_LayerManager->Draw( s_TaskBWindowLayerID );
     }
 }
 
