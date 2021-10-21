@@ -11,6 +11,7 @@
 
 #include "logger.hpp"
 #include "asmfunc.h"
+#include "Task.hpp"
 
 
 void InitializeInterrupt()
@@ -31,7 +32,7 @@ void InitializeInterrupt()
 __attribute__((interrupt))
 void IntHandlerXHCI( InterruptFrame* frame )
 {
-    g_EventQueue.Push( Message(Message::k_InterruptXHCI) );
+    TaskManager::Instance().SendMessage( TaskManager::k_MainTaskID, Message(Message::k_InterruptXHCI) );
     NotifyEndOfInterrupt();
 }
 

@@ -52,7 +52,6 @@ EXTERN int g_MainWindowLayerID;
 EXTERN Vector2<int> g_MousePosition;
 EXTERN Vector2<int> g_ScreenSize;
 EXTERN std::array<InterruptDescriptor, 256> g_IDT;
-EXTERN RingBuffer<Message, 32> g_EventQueue;
 
 EXTERN const acpi::FADT* g_FADT;
 EXTERN unsigned long g_LApicTimerFreq;

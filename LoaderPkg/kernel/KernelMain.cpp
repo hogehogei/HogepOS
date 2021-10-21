@@ -95,15 +95,21 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
 
     InitializeInterrupt();
     pci::InitializePCI();
-    usb::xhci::Initialize();
-    InitializeMouse();
-    Keyboard::InitializeKeyboard();
+
     ShowMemoryType( &memory_map );
 
     InitializeTaskBWindow( config );
     InitializeTask();
-    TaskManager::Instance().NewTask().InitContext( TaskB, 45 );
-    //TaskManager::Instance().NewTask().InitContext( TaskB, 45 );
+    usb::xhci::Initialize();
+    InitializeMouse();
+    Keyboard::InitializeKeyboard();
+
+    const uint64_t taskb_id = TaskManager::Instance().
+        NewTask().
+        InitContext( TaskB, 45 ).
+        Wakeup().
+        ID();
+    Task& main_task = TaskManager::Instance().CurrentTask();
 
     //TimerManager::Instance().AddTimer( Timer(100, 1) );
     //TimerManager::Instance().AddTimer( Timer(200, -1) );
@@ -116,16 +122,15 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
         g_LayerManager->Draw( g_MainWindowLayerID );
         __asm__("cli");
 
-        if( g_EventQueue.IsEmpty() ){
+        auto msg = main_task.ReceiveMessage();
+        if( !msg ){
+            main_task.Sleep();
             __asm__("sti");
             continue;
         }
-
-        auto msg = g_EventQueue.Front();
-        g_EventQueue.Pop();
         __asm__("sti");
 
-        switch( msg.Type ){
+        switch( msg->Type ){
         case Message::k_InterruptXHCI:
 
             while( g_xHC_Controller->PrimaryEventRing()->HasFront() ){
@@ -142,12 +147,18 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
         case Message::k_TimerTimeout:
             break;
         case Message::k_KeyPush:
-            if( msg.Arg.Keyboard.Key.Ascii() != 0 ){
-                Printk( "%c", msg.Arg.Keyboard.Key.Ascii() );
+            if( msg->Arg.Keyboard.Key.Ascii() != 0 ){
+                Printk( "%c", msg->Arg.Keyboard.Key.Ascii() );
+            }
+            if( msg->Arg.Keyboard.Key.Ascii() == 's' ){
+                TaskManager::Instance().Sleep( taskb_id );
+            }
+            if( msg->Arg.Keyboard.Key.Ascii() == 'w' ){
+                TaskManager::Instance().Wakeup( taskb_id );
             }
             break;
         default:
-            Log( kError, "Unknown message type: %d\n", msg.Type );
+            Log( kError, "Unknown message type: %d\n", msg->Type );
         }
     }
 }

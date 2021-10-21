@@ -6,6 +6,11 @@
 #include <cstdint>
 #include <array>
 #include <vector>
+#include <deque>
+#include <optional>
+
+#include "error.hpp"
+#include "Event.hpp"
 
 struct TaskContext
 {
@@ -28,15 +33,26 @@ public:
     Task& InitContext( TaskFunc* f, int64_t data );
     TaskContext& Context();
 
+    uint64_t ID() const;
+    Task& Sleep();
+    Task& Wakeup();
+
+    void SendMessage( const Message& msg );
+    std::optional<Message> ReceiveMessage();
+
 private:
 
     uint64_t m_ID;
-    std::vector<uint64_t> m_Stack;
+    std::vector<uint64_t>   m_Stack;
     alignas(16) TaskContext m_Context;
+    std::deque<Message>     m_MsgQueue;
 };
 
 class TaskManager
 {
+public:
+
+    static constexpr uint64_t k_MainTaskID = 1;
 public:
     
     TaskManager( TaskManager& ) = delete;
@@ -45,7 +61,16 @@ public:
     static TaskManager& Instance();
 
     Task& NewTask();
-    void SwitchTask();
+    Task& CurrentTask();
+    void SwitchTask( bool current_sleep = false );
+
+    void Sleep( Task* task );
+    Error Sleep( uint64_t id );
+
+    void Wakeup( Task* task );
+    Error Wakeup( uint64_t id );
+
+    Error SendMessage( uint64_t id, const Message& msg );
 
 private:
 
@@ -55,7 +80,7 @@ private:
     
     std::vector<std::unique_ptr<Task>> m_Tasks;
     uint64_t m_LatestID;
-    size_t m_CurrentTaskIndex;
+    std::deque<Task*> m_Running;
 };
 
 void InitializeTask();

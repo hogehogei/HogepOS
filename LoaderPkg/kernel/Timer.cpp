@@ -106,7 +106,7 @@ bool TimerManager::Tick()
         }
         Message m( Message::k_TimerTimeout );
         m.Arg.Timer.Value = t.Value();
-        g_EventQueue.Push( m );
+        TaskManager::Instance().SendMessage( TaskManager::k_MainTaskID, m );
 
         m_Timers.pop();
     }

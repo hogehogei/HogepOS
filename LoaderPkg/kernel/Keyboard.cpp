@@ -5,6 +5,7 @@
 #include "Keyboard.hpp"
 #include "Event.hpp"
 #include "Global.hpp"
+#include "Task.hpp"
 
 #include <memory>
 #include "usb/classdriver/keyboard.hpp"
@@ -99,7 +100,7 @@ void InitializeKeyboard()
 
             Message msg( Message::k_KeyPush );
             msg.Arg.Keyboard.Key = Key( modifier, keycode );
-            g_EventQueue.Push( msg );
+            TaskManager::Instance().SendMessage( TaskManager::k_MainTaskID, msg );
         };
 }
 }
