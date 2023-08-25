@@ -157,6 +157,12 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
                 TaskManager::Instance().Wakeup( taskb_id );
             }
             break;
+        case Message::k_Layer:
+            ProcessLayerMessage(*msg);
+            __asm__("cli");
+             TaskManager::Instance().SendMessage(msg->SrcTask, Message{Message::k_LayerFinish, main_task.ID()});
+            __asm__("sti");
+            break;
         default:
             Log( kError, "Unknown message type: %d\n", msg->Type );
         }
@@ -269,12 +275,33 @@ static void TaskB( uint64_t task_id, int64_t data )
     char str[128];
     int count = 0;
 
+    Task& taskb = TaskManager::Instance().CurrentTask();
     while( 1 ){
         ++count;
         sprintf( str, "%010d", count );
         FillRectAngle( *s_TaskBWindow->Writer(), {24, 28}, { 8*10, 16}, {0xc6, 0xc6, 0xc6} );
         WriteString( *s_TaskBWindow->Writer(), 24, 28, str, {0, 0, 0} );
-        g_LayerManager->Draw( s_TaskBWindowLayerID );
+        //g_LayerManager->Draw( s_TaskBWindowLayerID );
+
+        Message msg{Message::k_Layer, taskb.ID()};
+        msg.Arg.Layer.LayerID = s_TaskBWindowLayerID;
+        msg.Arg.Layer.op = LayerOperation::Draw;
+        __asm__("cli");
+        TaskManager::Instance().SendMessage(1, msg);
+        __asm__("sti");
+
+        while(1){
+            __asm__("cli");
+            auto msg = taskb.ReceiveMessage();
+            if( !msg ){
+                taskb.Sleep();
+                __asm__("sti");
+                continue;
+            }
+            if( msg->Type == Message::k_LayerFinish ){
+                break;
+            }
+        }
     }
 }
 

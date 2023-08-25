@@ -4,6 +4,7 @@
 
 #include "Graphic.hpp"
 #include "Window.hpp"
+#include "Event.hpp"
 
 using LayerID = unsigned int;
 
@@ -101,3 +102,4 @@ private:
 };
 
 void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen );
+void ProcessLayerMessage( const Message& msg );

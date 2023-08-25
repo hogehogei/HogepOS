@@ -32,7 +32,7 @@ void InitializeInterrupt()
 __attribute__((interrupt))
 void IntHandlerXHCI( InterruptFrame* frame )
 {
-    TaskManager::Instance().SendMessage( TaskManager::k_MainTaskID, Message(Message::k_InterruptXHCI) );
+    TaskManager::Instance().SendMessage( TaskManager::k_MainTaskID, Message(Message::k_InterruptXHCI, TaskManager::k_MainTaskID) );
     NotifyEndOfInterrupt();
 }
 

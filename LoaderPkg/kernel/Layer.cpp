@@ -288,3 +288,19 @@ void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
     g_MouseLayerID = mouse_layer_id;
     g_MainWindowLayerID = main_window_layer_id;
 }
+
+void ProcessLayerMessage( const Message& msg )
+{
+    const auto arg = msg.Arg.Layer;
+    switch(arg.op){
+    case LayerOperation::Move:
+        g_LayerManager->Move(arg.LayerID, {arg.x, arg.y});
+        break;
+    case LayerOperation::MoveRelative:
+        g_LayerManager->MoveRelative(arg.LayerID, {arg.x, arg.y});
+        break;
+    case LayerOperation::Draw:
+        g_LayerManager->Draw(arg.LayerID);
+        break;
+    }
+}

@@ -4,6 +4,13 @@
 
 #include "Keyboard.hpp"
 
+
+enum LayerOperation {
+    Move, 
+    MoveRelative,
+    Draw,
+};
+
 struct Message
 {
     enum EventType {
@@ -11,7 +18,11 @@ struct Message
         k_InterruptLAPICTimer,
         k_TimerTimeout,
         k_KeyPush,
+        k_Layer,
+        k_LayerFinish,
     } Type;
+
+    uint64_t SrcTask;
 
     union {
         struct {
@@ -22,11 +33,16 @@ struct Message
             Keyboard::Key Key;
         } Keyboard;
         
+        struct {
+            LayerOperation op;
+            uint32_t LayerID;
+            int x, y;
+        } Layer;
     } Arg;
 
     Message() = default;
     ~Message() = default;
     
-    Message( EventType value )
-     : Type( value ) {}
+    Message( EventType type, uint64_t src_task )
+     : Type(type), SrcTask(src_task) {}
 };
