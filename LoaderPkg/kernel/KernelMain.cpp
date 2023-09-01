@@ -21,6 +21,7 @@
 #include "Task.hpp"
 #include "PixelWriter.hpp"
 #include "Font.hpp"
+#include "Terminal.hpp"
 
 #include "asmfunc.h"
 #include "usb/memory.hpp"
@@ -89,8 +90,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     g_Cursor  = new(s_MouseCursorBuf) MouseCursor( g_PixelWriter, sk_DesktopBGColor, {300, 200} );
     g_MemManager = new(s_MemoryManagerBuf) BitmapMemoryManager();
 
-    FrameBuffer screen;
-    screen.Initialize( config );
+    g_MainScreen.Initialize( config );
 
     InitMemoryManager( &memory_map );
     InitializeHeap( *g_MemManager );
@@ -98,7 +98,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
 
     g_MousePosition = Vector2<int>{ 100, 100 };
     g_ScreenSize = Vector2<int>{ static_cast<int>(config.HorizontalResolution), static_cast<int>(config.VerticalResolution) };
-    CreateLayer( config, &screen );
+    CreateLayer( config, &g_MainScreen );
 
     InitializeInterrupt();
     pci::InitializePCI();
@@ -116,8 +116,13 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
         InitContext( TaskB, 45 ).
         Wakeup().
         ID();
-    Task& main_task = TaskManager::Instance().CurrentTask();
+    const uint64_t term_task_id = TaskManager::Instance().
+        NewTask().
+        InitContext( TaskTerminal, 0 ).
+        Wakeup().
+        ID();
 
+    Task& main_task = TaskManager::Instance().CurrentTask();
     //TimerManager::Instance().AddTimer( Timer(100, 1) );
     //TimerManager::Instance().AddTimer( Timer(200, -1) );
 

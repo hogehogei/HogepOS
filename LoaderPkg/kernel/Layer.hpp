@@ -2,11 +2,10 @@
 
 #include <memory>
 
+#include "Type.hpp"
 #include "Graphic.hpp"
 #include "Window.hpp"
 #include "Event.hpp"
-
-using LayerID = unsigned int;
 
 class Layer
 {
@@ -67,6 +66,8 @@ public:
     void Draw( const RectAngle<int>& area ) const;
     //! @brief 指定されたレイヤーより上にあるレイヤーの部分のみ再描写する
     void Draw( unsigned int id ) const;
+    //! @brief 指定されたレイヤーより上にあるレイヤーのについて、areaで指定した部分のみ再描写する
+    void Draw( unsigned int id, RectAngle<int> area ) const;
     //! @brief レイヤーの位置情報を指定された絶対座標へと更新する。再描写はしない
     void Move( LayerID id, Vector2<int> new_pos );
     //! @brief レイヤーの位置情報を指定された双代座標へと更新する。再描写はしない
@@ -117,6 +118,22 @@ private:
     LayerID m_ActiveLayer;
     LayerID m_MouseLayer;
 };
+
+constexpr Message MakeLayerMessage(
+    uint64_t task_id, LayerID layer_id, 
+    LayerOperation op, const RectAngle<int>& area )
+{
+    Message msg{ Message::k_Layer, task_id };
+
+    msg.Arg.Layer.LayerId = layer_id;
+    msg.Arg.Layer.op = op;
+    msg.Arg.Layer.x = area.pos.x;
+    msg.Arg.Layer.y = area.pos.y;
+    msg.Arg.Layer.w = area.size.x;
+    msg.Arg.Layer.h = area.size.y;
+
+    return msg;
+}
 
 void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen );
 void ProcessLayerMessage( const Message& msg );

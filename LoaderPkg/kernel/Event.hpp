@@ -1,14 +1,13 @@
 #pragma once 
 
 #include <cstdint>
-
 #include "Keyboard.hpp"
-
 
 enum LayerOperation {
     Move, 
     MoveRelative,
     Draw,
+    DrawArea,
 };
 
 struct Message
@@ -35,14 +34,12 @@ struct Message
         
         struct {
             LayerOperation op;
-            uint32_t LayerID;
+            LayerID LayerId;
             int x, y;
+            int w, h;
         } Layer;
     } Arg;
 
     Message() = default;
     ~Message() = default;
-    
-    Message( EventType type, uint64_t src_task )
-     : Type(type), SrcTask(src_task) {}
 };

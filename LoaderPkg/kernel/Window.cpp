@@ -249,3 +249,9 @@ void DrawTextBox( IPixelWriter& writer, Vector2<int> pos, Vector2<int> size )
     DrawTextBox(writer, pos, size,
                 ToColor(0xffffff), ToColor(0xc6c6c6), ToColor(0x848484));
 }
+
+void DrawTerminal( IPixelWriter& writer, Vector2<int> pos, Vector2<int> size ) 
+{
+    DrawTextBox(writer, pos, size,
+                ToColor(0x000000), ToColor(0xc6c6c6), ToColor(0x848484));
+}

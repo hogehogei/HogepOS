@@ -52,6 +52,7 @@ EXTERN int g_MainWindowLayerID;
 EXTERN std::shared_ptr<TopLevelWindow> g_TextBoxWindow;
 EXTERN int g_TextBoxWindowID;
 
+EXTERN FrameBuffer g_MainScreen;
 EXTERN Vector2<int> g_MousePosition;
 EXTERN Vector2<int> g_ScreenSize;
 EXTERN std::array<InterruptDescriptor, 256> g_IDT;

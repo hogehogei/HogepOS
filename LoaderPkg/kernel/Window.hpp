@@ -85,6 +85,8 @@ class TopLevelWindow : public Window
 public:
     static constexpr Vector2<int> k_TopLeftMargin{ 4, 24 };
     static constexpr Vector2<int> k_BottomRightMargin{ 4, 4 };
+    static constexpr int k_MarginX = k_TopLeftMargin.x + k_BottomRightMargin.x;
+    static constexpr int k_MarginY = k_TopLeftMargin.y + k_BottomRightMargin.y;
 
     class InnerAreaWriter : public IPixelWriter {
     public:
@@ -118,3 +120,4 @@ private:
 void DrawWindow( IPixelWriter& writer, const char* title );
 void DrawWindowTitle( IPixelWriter &writer, const char *title, bool active );
 void DrawTextBox( IPixelWriter& writer, Vector2<int> pos, Vector2<int> size ) ;
+void DrawTerminal( IPixelWriter& writer, Vector2<int> pos, Vector2<int> size ) ;

@@ -113,7 +113,12 @@ void LayerManager::Draw( const RectAngle<int>& area ) const
     m_Screen->Copy( area.pos, m_BackBuffer, area );
 }
 
-void LayerManager::Draw( unsigned int id ) const
+void LayerManager::Draw( unsigned int id) const
+{
+    Draw( id, {{0, 0}, {-1, -1}} );
+}
+
+void LayerManager::Draw( unsigned int id, RectAngle<int> area ) const
 {
     bool draw = false;
     RectAngle<int> window_area;
@@ -122,6 +127,10 @@ void LayerManager::Draw( unsigned int id ) const
         if( layer->ID() == id ){
             window_area.size = layer->GetWindow()->Size();
             window_area.pos  = layer->GetPosition();
+            if( area.size.x >= 0 || area.size.y >= 0 ){
+                area.pos = area.pos + window_area.pos;
+                window_area = window_area.Intersection( area );
+            }
             draw = true;
         }
 
@@ -352,13 +361,18 @@ void ProcessLayerMessage( const Message& msg )
     const auto arg = msg.Arg.Layer;
     switch(arg.op){
     case LayerOperation::Move:
-        g_LayerManager->Move( arg.LayerID, {arg.x, arg.y} );
+        g_LayerManager->Move( arg.LayerId, {arg.x, arg.y} );
         break;
     case LayerOperation::MoveRelative:
-        g_LayerManager->MoveRelative( arg.LayerID, {arg.x, arg.y} );
+        g_LayerManager->MoveRelative( arg.LayerId, {arg.x, arg.y} );
         break;
     case LayerOperation::Draw:
-        g_LayerManager->Draw( arg.LayerID );
+        g_LayerManager->Draw( arg.LayerId );
+        break;
+    case LayerOperation::DrawArea:
+        g_LayerManager->Draw( arg.LayerId, {{arg.x, arg.y}, {arg.w, arg.h}} );
+        break;
+    default:
         break;
     }
 }
