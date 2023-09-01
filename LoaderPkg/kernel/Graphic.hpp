@@ -4,14 +4,9 @@
 #include "PixelWriter.hpp"
 
 template <typename T>
-class Vector2
+struct Vector2
 {
-public:
-
     T x, y;
-
-    Vector2() : x(0), y(0) {}
-    Vector2( T tx, T ty ) : x(tx), y(ty) {}
 
     template <typename U>
     Vector2<T>& operator+=( const Vector2<U>& rhs )
@@ -24,13 +19,13 @@ public:
     template <typename U>
     const Vector2<T> operator+( const Vector2<U>& rhs ) const
     {
-        return Vector2<T>( x + rhs.x, y + rhs.y );
+        return Vector2<T>{ x + rhs.x, y + rhs.y };
     }
 
     template <typename U>
     const Vector2<T> operator-( const Vector2<U>& rhs ) const
     {
-        return Vector2<T>( x - rhs.x, y - rhs.y );
+        return Vector2<T>{ x - rhs.x, y - rhs.y };
     }
 };
 

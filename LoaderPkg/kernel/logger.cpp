@@ -21,7 +21,10 @@ int Printk( const char* format, ... )
     result = vsprintf( s, format, ap );
     va_end( ap );
 
-    g_Console->PutString( s );
+    if( g_Console ){
+        g_Console->PutString( s );
+    }
+
     return result;
 }
 

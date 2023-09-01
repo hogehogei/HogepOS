@@ -25,7 +25,7 @@
     //! @brief 指定されたIDを持つレイヤーを生成する
 Layer::Layer( LayerID id )
     : m_ID(id),
-      m_Pos(0, 0),
+      m_Pos{0, 0},
       m_Draggable( false ),
       m_Window()
 {}
@@ -233,6 +233,50 @@ Layer* LayerManager::FindLayer( LayerID id )
     return itr->get();
 }
 
+int LayerManager::GetHeight( unsigned int id )
+{
+    for( int h = 0; h < m_LayerStack.size(); ++h ){
+        if( m_LayerStack[h]->ID() == id ){
+            return h;
+        }
+    }
+    return -1;
+}
+
+ActiveLayer::ActiveLayer( LayerManager& manager )
+    : m_Manager(manager),
+      m_ActiveLayer(0),
+      m_MouseLayer(0)
+{}
+
+void ActiveLayer::SetMouseLayer( LayerID mouse_layer )
+{
+    m_MouseLayer = mouse_layer;
+}
+
+void ActiveLayer::Activate( LayerID layer_id )
+{
+    if( m_ActiveLayer == layer_id ){
+        return;
+    }
+
+    if( m_ActiveLayer > 0 ){
+        Layer* layer = g_LayerManager->FindLayer( m_ActiveLayer );
+        layer->GetWindow()->Deactivate();
+        g_LayerManager->Draw( m_ActiveLayer );
+    }
+
+    m_ActiveLayer = layer_id;
+    if( m_ActiveLayer > 0 ){
+        Layer* layer = g_LayerManager->FindLayer( m_ActiveLayer );
+        layer->GetWindow()->Activate();
+        // マウスの一個下のレイヤに表示
+        g_LayerManager->UpDown( m_ActiveLayer, g_LayerManager->GetHeight(m_MouseLayer) - 1 );
+        g_LayerManager->Draw( m_ActiveLayer );
+    }
+}
+
+
 void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
 {
     const int k_FrameWidth = config.HorizontalResolution;
@@ -253,12 +297,20 @@ void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
     DrawWindow( *g_MainWindow->Writer(), "Hello window" );
 
     auto console_window = std::make_shared<Window>(
-        Console::sk_Columns * 8, Console::sk_Rows * 16, config.PixelFormat 
+        Console::sk_Columns * 8, Console::sk_Rows * 16, config.PixelFormat
     );
     g_Console->SetWindow( console_window );
 
+    // Create text box
+    g_TextBoxWindow = std::make_shared<TopLevelWindow>(
+        8*20,  100, config.PixelFormat, "TextBox"
+    );
+    DrawTextBox( *g_TextBoxWindow->InnerWriter(), {0, 0}, g_TextBoxWindow->InnerSize() );
+
     g_LayerManager = new LayerManager();
     g_LayerManager->SetWriter( screen );
+
+    g_ActiveLayer = new ActiveLayer(*g_LayerManager);
 
     auto bglayer_id = g_LayerManager->NewLayer()
         .SetWindow( bg_window )
@@ -278,11 +330,17 @@ void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen )
         .Move( {0, 0} )
         .ID()
     );
+    g_TextBoxWindowID = g_LayerManager->NewLayer()
+        .SetWindow( g_TextBoxWindow )
+        .SetDraggable( true )
+        .Move( {500, 100} )
+        .ID();
 
     g_LayerManager->UpDown( bglayer_id, 0 );
     g_LayerManager->UpDown( g_Console->LayerID(), 1 );
     g_LayerManager->UpDown( main_window_layer_id, 2 );
-    g_LayerManager->UpDown( mouse_layer_id, 3 );
+    g_LayerManager->UpDown( g_TextBoxWindowID, 3 );
+    g_LayerManager->UpDown( mouse_layer_id, 4 );
     g_LayerManager->Draw( bglayer_id );
 
     g_MouseLayerID = mouse_layer_id;
@@ -294,13 +352,13 @@ void ProcessLayerMessage( const Message& msg )
     const auto arg = msg.Arg.Layer;
     switch(arg.op){
     case LayerOperation::Move:
-        g_LayerManager->Move(arg.LayerID, {arg.x, arg.y});
+        g_LayerManager->Move( arg.LayerID, {arg.x, arg.y} );
         break;
     case LayerOperation::MoveRelative:
-        g_LayerManager->MoveRelative(arg.LayerID, {arg.x, arg.y});
+        g_LayerManager->MoveRelative( arg.LayerID, {arg.x, arg.y} );
         break;
     case LayerOperation::Draw:
-        g_LayerManager->Draw(arg.LayerID);
+        g_LayerManager->Draw( arg.LayerID );
         break;
     }
 }

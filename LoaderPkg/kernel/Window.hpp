@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <vector>
+#include <string>
 
 #include "PixelWriter.hpp"
 #include "Graphic.hpp"
@@ -33,7 +34,7 @@ public:
 
     //! @brief 指定されたピクセル数の平面描写領域を作成する
     Window( int width, int height, PixelFormat shadow_format );
-    ~Window() = default;
+    virtual ~Window() = default;
 
     Window( const Window& ) = delete;
     Window& operator=( const Window& ) = delete;
@@ -48,7 +49,7 @@ public:
     //! @brief 透過色を設定する
     void SetTransparentColor( const std::optional<PixelColor>& c );
     //! @brief このインスタンスに紐づいた WindowWriter を取得する。
-    Window::WindowWriter* Writer();
+    virtual Window::WindowWriter* Writer();
 
     //! @brief 指定した位置のピクセルを返す
     PixelColor& At( int x, int y );
@@ -66,6 +67,9 @@ public:
     //! @brief 平面描写領域のサイズを返す
     Vector2<int> Size() const;
 
+    virtual void Activate() {}
+    virtual void Deactivate() {}
+
 private:
 
     int m_Width, m_Height;
@@ -76,4 +80,41 @@ private:
     FrameBuffer m_ShadowBuffer;
 };
 
+class TopLevelWindow : public Window
+{
+public:
+    static constexpr Vector2<int> k_TopLeftMargin{ 4, 24 };
+    static constexpr Vector2<int> k_BottomRightMargin{ 4, 4 };
+
+    class InnerAreaWriter : public IPixelWriter {
+    public:
+        InnerAreaWriter( TopLevelWindow& window ) : m_Window(window) {}
+        virtual void Write( uint32_t x, uint32_t y, const PixelColor& c ) override {
+            m_Window.Write( x + k_TopLeftMargin.x, y + k_TopLeftMargin.y, c );
+        }
+        virtual int Width() const override {
+            return m_Window.Width() - k_TopLeftMargin.x - k_BottomRightMargin.x;
+        }
+        virtual int Height() const override {
+            return m_Window.Height() - k_TopLeftMargin.y - k_BottomRightMargin.y;
+        }
+    private:
+        TopLevelWindow& m_Window;
+    };
+
+    TopLevelWindow( int width, int height, PixelFormat shadow_format, const std::string& title );
+    virtual void Activate() override;
+    virtual void Deactivate() override;
+
+    InnerAreaWriter* InnerWriter() { return &m_InnerWriter; }
+    Vector2<int> InnerSize() const;
+
+private:
+
+    std::string m_Title;
+    InnerAreaWriter m_InnerWriter;
+};
+
 void DrawWindow( IPixelWriter& writer, const char* title );
+void DrawWindowTitle( IPixelWriter &writer, const char *title, bool active );
+void DrawTextBox( IPixelWriter& writer, Vector2<int> pos, Vector2<int> size ) ;

@@ -45,9 +45,12 @@ EXTERN BitmapMemoryManager* g_MemManager;
 
 EXTERN usb::xhci::Controller* g_xHC_Controller;
 EXTERN LayerManager* g_LayerManager;
+EXTERN ActiveLayer* g_ActiveLayer;
 EXTERN int g_MouseLayerID;
 EXTERN std::shared_ptr<Window> g_MainWindow;
 EXTERN int g_MainWindowLayerID;
+EXTERN std::shared_ptr<TopLevelWindow> g_TextBoxWindow;
+EXTERN int g_TextBoxWindowID;
 
 EXTERN Vector2<int> g_MousePosition;
 EXTERN Vector2<int> g_ScreenSize;

@@ -19,6 +19,8 @@
 #include "Font.hpp"
 #include "Console.hpp"
 #include "Task.hpp"
+#include "PixelWriter.hpp"
+#include "Font.hpp"
 
 #include "asmfunc.h"
 #include "usb/memory.hpp"
@@ -46,6 +48,8 @@ static char s_MemoryManagerBuf[sizeof(BitmapMemoryManager)];
 static char s_String[128];
 static unsigned int s_Count = 0;
 
+static int s_TextCursorIndex = 0;
+
 static std::shared_ptr<Window> s_TaskBWindow;
 static int s_TaskBWindowLayerID;
 
@@ -64,6 +68,9 @@ static void ShowMemoryType( const MemoryMap* memory_map );
 static void InitializeTaskBWindow( const FrameBufferConfig& config );
 static void TaskB( uint64_t task_id, int64_t data );
 
+
+static void InputTextWindow( char c );
+static void DrawTextCursor( bool visible );
 
 
 extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, 
@@ -89,8 +96,8 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     InitializeHeap( *g_MemManager );
     SetLogLevel( kInfo );
 
-    g_MousePosition = Vector2<int>( 100, 100 );
-    g_ScreenSize = Vector2<int>( config.HorizontalResolution, config.VerticalResolution );
+    g_MousePosition = Vector2<int>{ 100, 100 };
+    g_ScreenSize = Vector2<int>{ static_cast<int>(config.HorizontalResolution), static_cast<int>(config.VerticalResolution) };
     CreateLayer( config, &screen );
 
     InitializeInterrupt();
@@ -120,6 +127,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
         FillRectAngle( *g_MainWindow->Writer(), {24, 28}, {8*10, 16}, {0xc6, 0xc6, 0xc6} );
         WriteString( *g_MainWindow->Writer(), 24, 28, s_String, {0, 0, 0} );
         g_LayerManager->Draw( g_MainWindowLayerID );
+
         __asm__("cli");
 
         auto msg = main_task.ReceiveMessage();
@@ -147,15 +155,26 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
         case Message::k_TimerTimeout:
             break;
         case Message::k_KeyPush:
-            if( msg->Arg.Keyboard.Key.Ascii() != 0 ){
-                Printk( "%c", msg->Arg.Keyboard.Key.Ascii() );
+        {
+            auto active_layer = g_ActiveLayer->GetActive();
+            if( active_layer == g_TextBoxWindowID ){
+                InputTextWindow(msg->Arg.Keyboard.Key.Ascii());
             }
-            if( msg->Arg.Keyboard.Key.Ascii() == 's' ){
-                TaskManager::Instance().Sleep( taskb_id );
+            else if( active_layer == taskb_id ){
+                if( msg->Arg.Keyboard.Key.Ascii() == 's' ){
+                    TaskManager::Instance().Sleep( taskb_id );
+                }
+                if( msg->Arg.Keyboard.Key.Ascii() == 'w' ){
+                    TaskManager::Instance().Wakeup( taskb_id );
+                }
             }
-            if( msg->Arg.Keyboard.Key.Ascii() == 'w' ){
-                TaskManager::Instance().Wakeup( taskb_id );
+            else {
+                if( msg->Arg.Keyboard.Key.Ascii() != 0 ){
+                    Printk( "%c", msg->Arg.Keyboard.Key.Ascii() );
+                }
             }
+        }
+  
             break;
         case Message::k_Layer:
             ProcessLayerMessage(*msg);
@@ -165,6 +184,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
             break;
         default:
             Log( kError, "Unknown message type: %d\n", msg->Type );
+            break;
         }
     }
 }
@@ -262,7 +282,7 @@ static void InitializeTaskBWindow( const FrameBufferConfig& config )
     s_TaskBWindowLayerID = g_LayerManager->NewLayer()
         .SetWindow( s_TaskBWindow )
         .SetDraggable( true )
-        .Move( Vector2<int>(100, 100 ) )
+        .Move( Vector2<int>{100, 100} )
         .ID();
 
     g_LayerManager->UpDown( s_TaskBWindowLayerID, std::numeric_limits<int>::max() );
@@ -303,6 +323,41 @@ static void TaskB( uint64_t task_id, int64_t data )
             }
         }
     }
+}
+
+static void DrawTextCursor( bool visible )
+{
+    auto text_window = g_TextBoxWindow;
+    const auto color = visible ? ToColor(0) : ToColor(0xffffff);
+    const auto pos = Vector2<int>{4 + 8*s_TextCursorIndex, 5};
+    FillRectAngle(*text_window->InnerWriter(), pos, {7, 15}, color);
+}
+
+static void InputTextWindow( char c )
+{
+    if( c == 0 ){
+        return;
+    }
+
+    auto pos = Vector2<int>{4 + 8*s_TextCursorIndex, 6};
+    auto text_window = g_TextBoxWindow;
+
+    const int max_chars = (text_window->InnerSize().x - 8) / 8 - 1;
+    if( (c == '\b') && (s_TextCursorIndex > 0) ){
+        DrawTextCursor(false);
+        --s_TextCursorIndex;
+        FillRectAngle(*text_window->InnerWriter(), pos, {8, 16}, ToColor(0xffffff));
+        DrawTextCursor(true);
+    } 
+    else if( (c >= ' ') && (s_TextCursorIndex < max_chars) ) 
+    {
+        DrawTextCursor(false);
+        WriteAscii(*text_window->InnerWriter(), pos.x, pos.y, c, ToColor(0));
+        ++s_TextCursorIndex;
+        DrawTextCursor(true);
+    }
+
+    g_LayerManager->Draw(g_TextBoxWindowID);
 }
 
 extern "C" void __cxa_pure_virtual() {

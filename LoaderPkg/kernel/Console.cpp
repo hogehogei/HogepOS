@@ -23,6 +23,11 @@ void Console::SetWindow( std::shared_ptr<Window> window )
     Refresh();
 }
 
+std::shared_ptr<Window> Console::GetWindow()
+{
+    return m_Window;
+}
+
 void Console::SetLayerID( unsigned int layer_id )
 {
     m_LayerID = layer_id;

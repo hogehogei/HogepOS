@@ -16,6 +16,7 @@ public:
     ~Console() = default;
 
     void SetWindow( std::shared_ptr<Window> window );
+    std::shared_ptr<Window> GetWindow();
     void SetLayerID( unsigned int layer_id );
     unsigned int LayerID() const;
     void PutString( const char* s );

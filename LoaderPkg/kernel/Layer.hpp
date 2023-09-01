@@ -88,17 +88,34 @@ public:
      */
     Layer* FindLayerByPosition( Vector2<int> pos, unsigned int exclude_id ) const;
 
+    //! @brief 指定されたIDのレイヤーを検索する
+    Layer* FindLayer( LayerID id );
+    //! @brief 指定されたレイヤーの現在の高さを返す
+    int GetHeight( LayerID id );
+
 private:
 
     using LayerPtr = std::unique_ptr<Layer>;
-
-    Layer* FindLayer( LayerID id );
 
     FrameBuffer* m_Screen;
     mutable FrameBuffer m_BackBuffer;
     std::vector<LayerPtr> m_Layers;
     std::vector<Layer*>   m_LayerStack;
     LayerID m_LatestID;
+};
+
+class ActiveLayer
+{
+public:
+    ActiveLayer( LayerManager& manager );
+    void SetMouseLayer( LayerID mouse_layer );
+    void Activate( LayerID layer_id );
+    LayerID GetActive() const { return m_ActiveLayer; }
+
+private:
+    LayerManager& m_Manager;
+    LayerID m_ActiveLayer;
+    LayerID m_MouseLayer;
 };
 
 void CreateLayer( const FrameBufferConfig& config, FrameBuffer* screen );

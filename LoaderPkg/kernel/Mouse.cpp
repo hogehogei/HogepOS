@@ -10,6 +10,7 @@
 #include "usb/xhci/xhci.hpp"
 #include "usb/xhci/trb.hpp"
 
+#include "Global.hpp"
 //
 // constant
 //
@@ -29,4 +30,5 @@
 void InitializeMouse()
 {
     usb::HIDMouseDriver::default_observer = MouseObserver;
+    g_ActiveLayer->SetMouseLayer( g_MouseLayerID );
 }

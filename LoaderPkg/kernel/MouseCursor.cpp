@@ -4,6 +4,7 @@
 //
 #include "MouseCursor.hpp"
 #include "Global.hpp"
+#include "logger.hpp"
 
 //
 // constant
@@ -44,9 +45,9 @@ void MouseObserver( uint8_t buttons, int8_t displacement_x, int8_t displacement_
 
     const auto oldpos = g_MousePosition;
 
-    auto newpos = g_MousePosition + Vector2<int>( displacement_x, displacement_y );
-    newpos = ElementMin( newpos, g_ScreenSize + Vector2<int>(-1, -1) );
-    g_MousePosition = ElementMax( newpos, Vector2<int>(0, 0) );
+    auto newpos = g_MousePosition + Vector2<int>{ displacement_x, displacement_y };
+    newpos = ElementMin( newpos, g_ScreenSize + Vector2<int>{-1, -1} );
+    g_MousePosition = ElementMax( newpos, Vector2<int>{0, 0} );
 
     const auto posdiff = g_MousePosition - oldpos;
 
@@ -59,6 +60,10 @@ void MouseObserver( uint8_t buttons, int8_t displacement_x, int8_t displacement_
         auto layer = g_LayerManager->FindLayerByPosition( g_MousePosition, g_MouseLayerID );
         if( layer && layer->IsDraggable() ){
             s_MouseDragLayerID = layer->ID();
+            g_ActiveLayer->Activate(layer->ID());
+        }
+        else {
+            g_ActiveLayer->Activate(0);
         }
     }
     else if( previous_left_pressed && left_pressed ){

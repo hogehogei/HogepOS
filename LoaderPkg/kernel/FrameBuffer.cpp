@@ -2,6 +2,7 @@
 // include files
 //
 #include "FrameBuffer.hpp"
+#include "Graphic.hpp"
 
 
 //
@@ -122,7 +123,7 @@ Error FrameBuffer::Copy( Vector2<int> dst_pos, const FrameBuffer& src, const Rec
     const RectAngle<int> src_outline( dst_pos - src_area.pos, FrameBufferSize(src.m_Config) );
 
     const auto copy_area = dst_outline.Intersection( src_outline.Intersection( src_area_shifted ) );
-    const auto src_start_pos = ElementMin( src_area.pos, FrameBufferSize(src.m_Config) - Vector2<int>(1, 1) );
+    const auto src_start_pos = copy_area.pos - (dst_pos - src_area.pos);
  
     uint8_t* dst_buf = FrameAddrAt( copy_area.pos, m_Config );
     const uint8_t* src_buf = FrameAddrAt( src_start_pos, src.m_Config );
