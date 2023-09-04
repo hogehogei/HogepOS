@@ -137,6 +137,41 @@ Error FrameBuffer::Copy( Vector2<int> dst_pos, const FrameBuffer& src, const Rec
     return MAKE_ERROR( Error::kSuccess );
 }
 
+void FrameBuffer::Move(Vector2<int> dst_pos, const RectAngle<int> &src)
+{
+    const auto bytes_per_pixel = BytesPerPixel(m_Config.PixelFormat);
+    const auto bytes_per_scan_line = BytesPerScanLine(m_Config);
+
+    if (dst_pos.y < src.pos.y){ // move up
+        uint8_t *dst_buf = FrameAddrAt(dst_pos, m_Config);
+        const uint8_t *src_buf = FrameAddrAt(src.pos, m_Config);
+        for (int y = 0; y < src.size.y; ++y){
+            memcpy(dst_buf, src_buf, bytes_per_pixel * src.size.x);
+            dst_buf += bytes_per_scan_line;
+            src_buf += bytes_per_scan_line;
+        }
+    }
+    else if (dst_pos.y == src.pos.y){ // move left or move right
+        uint8_t *dst_buf = FrameAddrAt(dst_pos, m_Config);
+        const uint8_t *src_buf = FrameAddrAt(src.pos, m_Config);
+        for (int y = 0; y < src.size.y; ++y){
+            // dst_buf and src_buf may overlap, we must use memmove
+            memmove(dst_buf, src_buf, bytes_per_pixel * src.size.x);
+            dst_buf += bytes_per_scan_line;
+            src_buf += bytes_per_scan_line;
+        }
+    }
+    else { // move down
+        uint8_t *dst_buf = FrameAddrAt(dst_pos + Vector2<int>{0, src.size.y - 1}, m_Config);
+        const uint8_t *src_buf = FrameAddrAt(src.pos + Vector2<int>{0, src.size.y - 1}, m_Config);
+        for (int y = 0; y < src.size.y; ++y){
+            memcpy(dst_buf, src_buf, bytes_per_pixel * src.size.x);
+            dst_buf -= bytes_per_scan_line;
+            src_buf -= bytes_per_scan_line;
+        }
+    }
+}
+
 FrameBufferPixelWriter& FrameBuffer::Writer()
 {
     return *m_Writer;

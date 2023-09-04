@@ -121,6 +121,12 @@ void Window::DrawTo(FrameBuffer &dst, Vector2<int> pos, const RectAngle<int> &ar
     }
 }
 
+void Window::Move( Vector2<int> dst_pos, const RectAngle<int>& src )
+{
+    m_ShadowBuffer.Move( dst_pos, src );
+}
+
+
 void Window::SetTransparentColor(const std::optional<PixelColor> &c)
 {
     m_TransparentColor = c;

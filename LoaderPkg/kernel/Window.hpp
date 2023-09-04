@@ -46,6 +46,14 @@ public:
      */
     void DrawTo( FrameBuffer& dst, Vector2<int> pos, const RectAngle<int>& area );
 
+    /** @brief このウィンドウの平面描画領域内で，矩形領域を移動する。
+     *
+     * @param src_pos   移動元矩形の原点
+     * @param src_size  移動元矩形の大きさ
+     * @param dst_pos   移動先の原点
+     */
+    void Move( Vector2<int> dst_pos, const RectAngle<int>& src );
+
     //! @brief 透過色を設定する
     void SetTransparentColor( const std::optional<PixelColor>& c );
     //! @brief このインスタンスに紐づいた WindowWriter を取得する。

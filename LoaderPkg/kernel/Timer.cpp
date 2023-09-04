@@ -7,6 +7,7 @@
 #include "Interrupt.hpp"
 #include "Global.hpp"
 #include "Task.hpp"
+#include "Event.hpp"
 
 //
 // constant
@@ -104,7 +105,7 @@ bool TimerManager::Tick()
             m_Timers.push( Timer( k_TaskTimerPeriod, k_TaskTimerValue ) );
             continue;
         }
-        Message m( Message::k_TimerTimeout, TaskManager::k_MainTaskID );
+        Message m{ Message::k_TimerTimeout, TaskManager::k_MainTaskID };
         m.Arg.Timer.Value = t.Value();
         TaskManager::Instance().SendMessage( TaskManager::k_MainTaskID, m );
 

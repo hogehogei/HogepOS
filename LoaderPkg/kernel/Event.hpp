@@ -1,6 +1,7 @@
 #pragma once 
 
 #include <cstdint>
+#include "Type.hpp"
 #include "Keyboard.hpp"
 
 enum LayerOperation {

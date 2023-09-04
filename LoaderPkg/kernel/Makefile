@@ -25,9 +25,19 @@ $(TARGET):	$(COBJS) $(CPPOBJS) $(ASMOBJS) Makefile
 %.o: %.cpp Makefile
 	clang++ $(CPPFLAGS) $(CXXFLAGS) -I. -I.. -c $< -o $@
 
+.%.d: %.cpp
+	clang++ $(CPPFLAGS) $(CXXFLAGS) -MM $< > $@
+	$(eval OBJ = $(<:.cpp=.o))
+	sed --in-place 's|$(notdir $(OBJ))|$(OBJ)|' $@
+
 %.o: %.c Makefile
 	clang $(CPPFLAGS) $(CFLAGS) -I. -I.. -c $< -o $@
 
+.%.d: %.c
+	clang $(CPPFLAGS) $(CFLAGS) -MM $< > $@
+	$(eval OBJ = $(<:.c=.o))
+	sed --in-place 's|$(notdir $(OBJ))|$(OBJ)|' $@
+	
 %.o: %.asm Makefile
 	nasm -f elf64 -o $@ $<
 

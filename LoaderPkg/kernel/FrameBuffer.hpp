@@ -29,6 +29,8 @@ public:
      */
     Error Copy( Vector2<int> dst_pos, const FrameBuffer& src, const RectAngle<int>& src_area );
 
+    void Move( Vector2<int> dst_pos, const RectAngle<int>& src );
+
     FrameBufferPixelWriter& Writer();
     const FrameBufferConfig& Config() const;
 

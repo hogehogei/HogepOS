@@ -111,16 +111,15 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     InitializeMouse();
     Keyboard::InitializeKeyboard();
 
+#if 1
     const uint64_t taskb_id = TaskManager::Instance().
         NewTask().
         InitContext( TaskB, 45 ).
         Wakeup().
         ID();
-    const uint64_t term_task_id = TaskManager::Instance().
-        NewTask().
-        InitContext( TaskTerminal, 0 ).
-        Wakeup().
-        ID();
+#endif
+
+    Terminal* terminal = new Terminal();
 
     Task& main_task = TaskManager::Instance().CurrentTask();
     //TimerManager::Instance().AddTimer( Timer(100, 1) );
@@ -134,7 +133,6 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
         g_LayerManager->Draw( g_MainWindowLayerID );
 
         __asm__("cli");
-
         auto msg = main_task.ReceiveMessage();
         if( !msg ){
             main_task.Sleep();
@@ -161,11 +159,12 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
             break;
         case Message::k_KeyPush:
         {
-            auto active_layer = g_ActiveLayer->GetActive();
-            if( active_layer == g_TextBoxWindowID ){
+            auto active_layer_id= g_ActiveLayer->GetActive();
+            if( active_layer_id == g_TextBoxWindowID ){
                 InputTextWindow(msg->Arg.Keyboard.Key.Ascii());
             }
-            else if( active_layer == taskb_id ){
+#if 1
+            else if( active_layer_id == taskb_id ){
                 if( msg->Arg.Keyboard.Key.Ascii() == 's' ){
                     TaskManager::Instance().Sleep( taskb_id );
                 }
@@ -173,10 +172,9 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
                     TaskManager::Instance().Wakeup( taskb_id );
                 }
             }
+#endif
             else {
-                if( msg->Arg.Keyboard.Key.Ascii() != 0 ){
-                    Printk( "%c", msg->Arg.Keyboard.Key.Ascii() );
-                }
+                TerminalMessageDispacher::Instance().Dispatch( active_layer_id, *msg );
             }
         }
   
@@ -309,7 +307,7 @@ static void TaskB( uint64_t task_id, int64_t data )
         //g_LayerManager->Draw( s_TaskBWindowLayerID );
 
         Message msg{Message::k_Layer, taskb.ID()};
-        msg.Arg.Layer.LayerID = s_TaskBWindowLayerID;
+        msg.Arg.Layer.LayerId = s_TaskBWindowLayerID;
         msg.Arg.Layer.op = LayerOperation::Draw;
         __asm__("cli");
         TaskManager::Instance().SendMessage(1, msg);
@@ -323,6 +321,8 @@ static void TaskB( uint64_t task_id, int64_t data )
                 __asm__("sti");
                 continue;
             }
+            __asm__("sti");
+            
             if( msg->Type == Message::k_LayerFinish ){
                 break;
             }

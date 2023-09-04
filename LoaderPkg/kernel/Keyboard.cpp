@@ -98,7 +98,7 @@ void InitializeKeyboard()
     usb::HIDKeyboardDriver::default_observer = 
         [] (uint8_t modifier, uint8_t keycode) {
 
-            Message msg( Message::k_KeyPush, TaskManager::k_MainTaskID );
+            Message msg{ Message::k_KeyPush, TaskManager::k_MainTaskID };
             msg.Arg.Keyboard.Key = Key( modifier, keycode );
             TaskManager::Instance().SendMessage( TaskManager::k_MainTaskID, msg );
         };
