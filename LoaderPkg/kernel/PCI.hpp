@@ -102,6 +102,13 @@ namespace pci
          */
         uint16_t ReadVendorID( uint8_t bus, uint8_t device, uint8_t function ) const;
         uint16_t ReadVendorID( const Device& device ) const;
+
+        /**
+         * @brief デバイスID読み取り
+         */
+        uint16_t ReadDeviceID( uint8_t bus, uint8_t device, uint8_t function ) const;
+        uint16_t ReadDeviceID( const Device& device ) const;
+
         /**
          * @brief ヘッダータイプ読み取り
          */

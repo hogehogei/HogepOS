@@ -253,9 +253,9 @@ void Terminal::ExecuteLine()
         for( int i = 0; i < pciconf.GetDeviceNum(); ++i ){
             const auto& dev = pciconf.GetDevices()[i];
             auto vendor_id = pciconf.ReadVendorID(dev);
-
-            sprintf(s, "%02x:%02x.%d vend=%04x head=%02x class %02x.%02x.%02x\n",
-                dev.Bus, dev.Device, dev.Function, vendor_id, dev.HeaderType,
+            auto device_id = pciconf.ReadDeviceID(dev);
+            sprintf(s, "%02x:%02x.%d vend=%04x devid=%04x head=%02x class %02x.%02x.%02x\n",
+                dev.Bus, dev.Device, dev.Function, vendor_id, device_id, dev.HeaderType,
                 dev.ClassCode.Base(), dev.ClassCode.Sub(), dev.ClassCode.Interface()
             );
             Print(s);

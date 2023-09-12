@@ -96,6 +96,17 @@ uint16_t ConfigurationArea::ReadVendorID( const Device& device ) const
     return ReadVendorID( device.Bus, device.Device, device.Function );
 }
 
+uint16_t ConfigurationArea::ReadDeviceID( uint8_t bus, uint8_t device, uint8_t function ) const
+{
+    WriteAddress( MakeAddress(bus, device, function, 0x00) );
+    return (ReadData() >> 16) & 0xFFFFu;
+}
+
+uint16_t ConfigurationArea::ReadDeviceID( const Device& device ) const
+{
+    return ReadDeviceID( device.Bus, device.Device, device.Function );
+}
+
 uint8_t ConfigurationArea::ReadHeaderType( uint8_t bus, uint8_t device, uint8_t function ) const
 {
     WriteAddress( MakeAddress(bus, device, function, 0x0C) );
