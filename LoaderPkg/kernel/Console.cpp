@@ -58,6 +58,16 @@ void Console::PutString( const char* s )
     }
 }
 
+void Console::ClearConsole()
+{
+    for( int y = 0; y < 16 * sk_Rows; ++y ){
+        for( int x = 0; x < 8 * sk_Columns; ++x ){
+            m_Window->Writer()->Write( x, y, m_BackGroundColor );
+        }
+    }
+    g_LayerManager->Draw( m_LayerID );
+}
+
 char* Console::CurrentLine()
 {
     return m_ConsoleLines.Back();
@@ -82,16 +92,6 @@ void Console::NewLine()
         // コンソール再描写
         Refresh();
     }
-}
-
-void Console::ClearConsole()
-{
-    for( int y = 0; y < 16 * sk_Rows; ++y ){
-        for( int x = 0; x < 8 * sk_Columns; ++x ){
-            m_Window->Writer()->Write( x, y, m_BackGroundColor );
-        }
-    }
-    g_LayerManager->Draw( m_LayerID );
 }
 
 void Console::Refresh()

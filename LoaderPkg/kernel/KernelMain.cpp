@@ -99,11 +99,12 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     g_MousePosition = Vector2<int>{ 100, 100 };
     g_ScreenSize = Vector2<int>{ static_cast<int>(config.HorizontalResolution), static_cast<int>(config.VerticalResolution) };
     CreateLayer( config, &g_MainScreen );
+    g_Console->ClearConsole();
 
     InitializeInterrupt();
     pci::InitializePCI();
 
-    ShowMemoryType( &memory_map );
+    //ShowMemoryType( &memory_map );
 
     InitializeTaskBWindow( config );
     InitializeTask();

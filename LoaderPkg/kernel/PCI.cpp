@@ -332,7 +332,7 @@ void InitializePCI()
     const auto& devices = pci::ConfigurationArea().Instance().GetDevices();
     int device_num = pci::ConfigurationArea().Instance().GetDeviceNum();
 
-   Log( kDebug, "NumDevice : %d\n", device_num );
+    Log( kDebug, "NumDevice : %d\n", device_num );
     for( int i = 0; i < device_num; ++i ){
         const auto& dev = devices[i];
         auto vendor_id  = pci::ConfigurationArea::Instance().ReadVendorID( dev.Bus, dev.Device, dev.Function );

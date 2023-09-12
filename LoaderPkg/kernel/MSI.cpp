@@ -64,16 +64,17 @@ uint8_t MSICapability::NextPointer() const
     ConfigurationArea& instance = ConfigurationArea::Instance();
     
     instance.WriteAddress( instance.MakeAddress(m_Device, m_CapabilitiesPointer) );
-    Log( kDebug, "NextPointer: (%02x)\n", (instance.ReadData() >> 8) & 0xFFu );
-    return (instance.ReadData() >> 8) & 0xFFu;
+    uint8_t next_ptr = (instance.ReadData() >> 8) & 0xFFu;
+
+    return next_ptr;
 }
 
 bool MSICapability::IsLastEntry() const
 {
-    return NextPointer() == 0;
+    return m_CapabilitiesPointer == 0;
 }
 
-pci::MessageControl MSICapability::MessageControl() const
+pci::MessageControl MSICapability::ReadMessageControl() const
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
     
@@ -81,7 +82,7 @@ pci::MessageControl MSICapability::MessageControl() const
     return pci::MessageControl( (instance.ReadData() >> 16) & 0xFFFFu );
 }
 
-void MSICapability::MessageControl( const pci::MessageControl& msgctrl )
+void MSICapability::WriteMessageControl( const pci::MessageControl& msgctrl )
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
     instance.WriteAddress( instance.MakeAddress(m_Device, m_CapabilitiesPointer) );
@@ -92,7 +93,7 @@ void MSICapability::MessageControl( const pci::MessageControl& msgctrl )
     instance.WriteData( header );
 }
 
-pci::MessageAddress MSICapability::MessageAddress() const
+pci::MessageAddress MSICapability::ReadMessageAddress() const
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
     
@@ -100,7 +101,7 @@ pci::MessageAddress MSICapability::MessageAddress() const
     return instance.ReadData();
 }
 
-void MSICapability::MessageAddress( const pci::MessageAddress& msgaddr )
+void MSICapability::WriteMessageAddress( const pci::MessageAddress& msgaddr )
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
     instance.WriteAddress( instance.MakeAddress(m_Device, m_CapabilitiesPointer + 0x04) );
@@ -108,27 +109,35 @@ void MSICapability::MessageAddress( const pci::MessageAddress& msgaddr )
     instance.WriteData( msgaddr.Data );
 }
 
-uint32_t MSICapability::MessageUpperAddress() const
+uint32_t MSICapability::ReadMessageUpperAddress() const
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
     
-    instance.WriteAddress( instance.MakeAddress(m_Device, m_CapabilitiesPointer + 0x08) );
-    return instance.ReadData();
+    uint32_t addr = 0;
+    pci::MessageControl msgctrl = ReadMessageControl();
+    if( msgctrl.Bits.Addr64_Capable == 1 ){
+        instance.WriteAddress( instance.MakeAddress(m_Device, m_CapabilitiesPointer + 0x08) );
+        addr = instance.ReadData();
+    }
+    return addr;
 }
 
-void MSICapability::MessageUpperAddress( const uint32_t msgaddr )
+void MSICapability::WriteMessageUpperAddress( const uint32_t msgaddr )
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
-    
-    instance.WriteAddress( instance.MakeAddress(m_Device, m_CapabilitiesPointer + 0x08) );
-    instance.WriteData( msgaddr );
+
+    pci::MessageControl msgctrl = ReadMessageControl();
+    if( msgctrl.Bits.Addr64_Capable == 1 ){
+        instance.WriteAddress( instance.MakeAddress(m_Device, m_CapabilitiesPointer + 0x08) );
+        instance.WriteData( msgaddr );
+    }
 }
 
-pci::MessageData MSICapability::MessageData() const
+pci::MessageData MSICapability::ReadMessageData() const
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
     
-    pci::MessageControl msgctrl = MessageControl();
+    pci::MessageControl msgctrl = ReadMessageControl();
     uint8_t msgdata_addr = 8;
     if( msgctrl.Bits.Addr64_Capable == 1 ){
         msgdata_addr = 12;
@@ -138,11 +147,11 @@ pci::MessageData MSICapability::MessageData() const
     return instance.ReadData();
 }
 
-void MSICapability::MessageData( const pci::MessageData& msgdata )
+void MSICapability::WriteMessageData( const pci::MessageData& msgdata )
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
 
-    pci::MessageControl msgctrl = MessageControl();
+    pci::MessageControl msgctrl = ReadMessageControl();
     uint8_t msgdata_addr = 8;
     if( msgctrl.Bits.Addr64_Capable == 1 ){
         msgdata_addr = 12;
@@ -168,15 +177,21 @@ Error ConfigureMSIFixedDestination(
 {
     MSICapability cap( dev );
 
+    uint8_t msi_cap_addr = 0;
     while( !cap.IsLastEntry() ){
+        Log( kDebug, "cap=(%02x), curr=(%02x), next=(%02x)\n", cap.CapabilityID(), cap.CapabilitiesPointer(), cap.NextPointer() );
+        if( cap.CapabilityID() == k_CapabilityID_MSI ){
+            msi_cap_addr = cap.CapabilitiesPointer();
+        }
         cap = cap.NextCapability();
     }
 
-    if( cap.CapabilityID() == k_CapabilityID_MSIX ){
-        MAKE_ERROR( Error::kNotImplemented );
+    if( msi_cap_addr == 0 ){
+        return MAKE_ERROR( Error::kNotImplemented );
     }
 
-    MessageControl msgctrl( cap.MessageControl() );
+    cap = MSICapability( dev, msi_cap_addr );
+    MessageControl msgctrl( cap.ReadMessageControl() );
     msgctrl.Bits.Enable = 1;
     msgctrl.Bits.MultipleMsgEnable = std::min<uint8_t>( msgctrl.Bits.MultipleMsgCapable, num_vector_exponent );
     msgctrl.Bits.VectorMaskingCapable = 1;
@@ -194,10 +209,10 @@ Error ConfigureMSIFixedDestination(
     msgdata.Bits.DeliveryMode = static_cast<uint32_t>(delivery_mode);
     msgdata.Bits.Vector       = vector;
 
-    cap.MessageControl( msgctrl );
-    cap.MessageAddress( msgaddr );
-    cap.MessageUpperAddress( 0 );
-    cap.MessageData( msgdata );
+    cap.WriteMessageControl( msgctrl );
+    cap.WriteMessageAddress( msgaddr );
+    cap.WriteMessageUpperAddress( 0 );
+    cap.WriteMessageData( msgdata );
 
     ShowMSIRegister( cap );
 

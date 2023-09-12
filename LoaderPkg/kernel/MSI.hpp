@@ -85,14 +85,14 @@ namespace pci
         uint8_t CapabilityID() const;
         uint8_t NextPointer() const;
         bool IsLastEntry() const;
-        pci::MessageControl MessageControl() const;
-        void MessageControl( const pci::MessageControl& msgctrl );
-        pci::MessageAddress MessageAddress() const;
-        void MessageAddress( const pci::MessageAddress& msgaddr );
-        uint32_t MessageUpperAddress() const;
-        void MessageUpperAddress( const uint32_t msgaddr );
-        pci::MessageData MessageData() const;
-        void MessageData( const pci::MessageData& msgdata );
+        pci::MessageControl ReadMessageControl() const;
+        void WriteMessageControl( const pci::MessageControl& msgctrl );
+        pci::MessageAddress ReadMessageAddress() const;
+        void WriteMessageAddress( const pci::MessageAddress& msgaddr );
+        uint32_t ReadMessageUpperAddress() const;
+        void WriteMessageUpperAddress( const uint32_t msgaddr );
+        pci::MessageData ReadMessageData() const;
+        void WriteMessageData( const pci::MessageData& msgdata );
 
         MSICapability NextCapability() const;
 

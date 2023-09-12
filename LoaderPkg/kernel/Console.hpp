@@ -21,13 +21,14 @@ public:
     unsigned int LayerID() const;
     void PutString( const char* s );
 
+    void ClearConsole();
+
 private:
 
     static constexpr int sk_ColumnBufferLen = sk_Columns + 1;
 
     char* CurrentLine();
     void NewLine();
-    void ClearConsole();
     void Refresh();
 
     std::shared_ptr<Window> m_Window;
