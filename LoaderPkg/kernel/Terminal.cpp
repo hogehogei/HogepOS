@@ -1,6 +1,7 @@
 #include "Terminal.hpp"
 #include "Global.hpp"
 #include "Setting.hpp"
+#include "PCI.hpp"
 #include "Graphic.hpp"
 #include "Font.hpp"
 #include "Task.hpp"
@@ -67,6 +68,7 @@ Terminal::Terminal()
         ID();
 
     TerminalMessageDispacher::Instance().Register( m_LayerID, m_TaskID );
+    Print("#");
 }
 
 Terminal::~Terminal()
@@ -100,6 +102,10 @@ RectAngle<int> Terminal::InputKey(
         else {
             ScrollLine();
         }
+
+        ExecuteLine();
+        Print("#");
+
         draw_area.pos  = TopLevelWindow::k_TopLeftMargin;
         draw_area.size = m_Window->InnerSize(); 
     }
@@ -127,6 +133,40 @@ RectAngle<int> Terminal::InputKey(
     DrawCursor(true);
 
     return draw_area;
+}
+
+void Terminal::Print( const char* s )
+{
+    DrawCursor( false );
+
+    auto newline = [this]() {
+        m_Cursor.x = 0;
+        if( m_Cursor.y < k_Rows - 1 ){
+            ++m_Cursor.y;
+        }
+        else {
+            ScrollLine();
+        }
+    };
+
+    while( *s ){
+        if( *s == '\n' ){
+            newline();
+        }
+        else {
+            auto pos = CalcCursorPos();
+            WriteAscii( *(m_Window->Writer()), pos.x, pos.y, *s, {255, 255, 255} );
+            if( m_Cursor.x == k_Columns - 1 ){
+                newline();
+            }
+            else {
+                ++m_Cursor.x;
+            }
+        }
+        ++s;
+    }
+
+    DrawCursor( true );
 }
 
 Vector2<int> Terminal::CalcCursorPos()
@@ -185,5 +225,45 @@ void TaskTerminal( uint64_t task_id, int64_t data )
             break;
         }
     }
-  
+}
+
+void Terminal::ExecuteLine()
+{
+    const char* cmd = &m_LineBuf[0];
+    char* first_arg = strchr( &m_LineBuf[0], ' ' );
+    if( first_arg ){
+        *first_arg = '\0';
+        ++first_arg;
+    }
+
+    if( strcmp(cmd, "echo") == 0 ){
+        if( first_arg ){
+            Print( first_arg );
+        }
+        Print("\n");
+    }
+    else if( strcmp(cmd, "clear") == 0 ){
+        FillRectAngle( *(m_Window->InnerWriter()), {4, 4}, {8 * k_Columns, 16*k_Rows}, {0, 0, 0} );
+        m_Cursor.y = 0;
+    }
+    else if( strcmp(cmd, "lspci") == 0 ){
+        char s[64];
+
+        pci::ConfigurationArea& pciconf = pci::ConfigurationArea::Instance();
+        for( int i = 0; i < pciconf.GetDeviceNum(); ++i ){
+            const auto& dev = pciconf.GetDevices()[i];
+            auto vendor_id = pciconf.ReadVendorID(dev);
+
+            sprintf(s, "%02x:%02x.%d vend=%04x head=%02x class %02x.%02x.%02x\n",
+                dev.Bus, dev.Device, dev.Function, vendor_id, dev.HeaderType,
+                dev.ClassCode.Base(), dev.ClassCode.Sub(), dev.ClassCode.Interface()
+            );
+            Print(s);
+        }
+    }
+    else if( cmd[0] != '\0' ){
+        Print( "no such command: " );
+        Print( cmd );
+        Print( "\n" );
+    }
 }

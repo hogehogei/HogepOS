@@ -40,11 +40,13 @@ public:
     LayerID GetLayerID() const { return m_LayerID; }
     RectAngle<int> InputKey( uint8_t modifier, uint8_t keycode, char ascii );
 
+    void Print( const char* s );
 private:
 
     void DrawCursor( bool is_visible );
     Vector2<int> CalcCursorPos();
     void ScrollLine();
+    void ExecuteLine();
 
     std::shared_ptr<TopLevelWindow> m_Window;
     LayerID m_LayerID;
