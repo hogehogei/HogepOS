@@ -6,6 +6,20 @@
 #include "Font.hpp"
 #include "Task.hpp"
 
+//
+// static variables
+//
+static const char* sk_BarDumpAddrType[] = {
+    "IO",
+    "MEM"
+};
+static const char* sk_BarDumpAddrSize[] = {
+    "32bit",
+    "64bit"
+};
+
+
+
 TerminalMessageDispacher& TerminalMessageDispacher::Instance()
 {
     static TerminalMessageDispacher s_Instance;
@@ -229,6 +243,8 @@ void TaskTerminal( uint64_t task_id, int64_t data )
 
 void Terminal::ExecuteLine()
 {
+    char s[64];
+
     const char* cmd = &m_LineBuf[0];
     char* first_arg = strchr( &m_LineBuf[0], ' ' );
     if( first_arg ){
@@ -247,8 +263,6 @@ void Terminal::ExecuteLine()
         m_Cursor.y = 0;
     }
     else if( strcmp(cmd, "lspci") == 0 ){
-        char s[64];
-
         pci::ConfigurationArea& pciconf = pci::ConfigurationArea::Instance();
         for( int i = 0; i < pciconf.GetDeviceNum(); ++i ){
             const auto& dev = pciconf.GetDevices()[i];
@@ -259,6 +273,37 @@ void Terminal::ExecuteLine()
                 dev.ClassCode.Base(), dev.ClassCode.Sub(), dev.ClassCode.Interface()
             );
             Print(s);
+        }
+    }
+    else if( strcmp(cmd, "dumpbar") == 0 ){
+        pci::Device dev;
+        uint32_t bus = 0, device = 0, func = 0;
+
+        sscanf( first_arg, "%2x:%2x:%2x", &bus, &device, &func );
+        dev.Bus = bus;
+        dev.Device = device;
+        dev.Function = func;
+        sprintf( s, "dumpbar %02x:%02x:%02x\n", dev.Bus, dev.Device, dev.Function );
+        Print(s);
+
+        pci::DumpBARArray bar_array;
+        size_t bar_dump_len;
+        pci::ConfigurationArea& pciconf = pci::ConfigurationArea::Instance();
+        if( pciconf.DumpBAR(dev, bar_array, bar_dump_len) ){
+            for( size_t i = 0; i < bar_dump_len; ++i ){
+                const auto& bar = bar_array[i];
+
+                sprintf(s, "Type:%s, Prefetch:%s, AddrSize:%s, Addr:%lx\n", 
+                    sk_BarDumpAddrType[static_cast<int>(bar.AddrType)],
+                    bar.IsPrefetchEnable ? "enable" : "disable",
+                    sk_BarDumpAddrSize[static_cast<int>(bar.AddrSize)],
+                    bar.Addr
+                );
+                Print(s);
+            }
+        }
+        else {
+            Print( "dumpbar command failed.\n" );
         }
     }
     else if( cmd[0] != '\0' ){

@@ -7,6 +7,16 @@
 
 #include "error.hpp"
 
+static constexpr uint32_t sk_BAR_MASK_IO               = 0x00000001;
+static constexpr uint32_t sk_BAR_MASK_MEMORY_TYPE      = 0x00000006;
+static constexpr uint32_t sk_BAR_MASK_PREFETCH_ENABLE  = 0x00000008;
+
+static constexpr uint32_t sk_BAR_MEMORY_TYPE_32BIT = 0x00000000;
+static constexpr uint32_t sk_BAR_MEMORY_TYPE_64BIT = 0x00000004;
+
+static constexpr uint32_t sk_BAR_ADDR_32BIT_MASK  = 0xFFFFFFF0;
+static constexpr uint32_t sk_BAR_IO_ADDR_MASK     = 0xFFFFFFFC;
+
 namespace pci
 {
     static constexpr int sk_DeviceMax = 32;         //! PCIの認識できる最大デバイス数
@@ -43,6 +53,24 @@ namespace pci
         ClassCode ClassCode;
     };
 
+
+    struct BAR
+    {
+        enum AddressType {
+            ADDR_TYPE_IO,
+            ADDR_TYPE_MEMORY,
+        };
+        enum AddressSize {
+            ADDR_32BIT,
+            ADDR_64BIT,
+        };
+
+        AddressType AddrType;
+        AddressSize AddrSize;
+        uint64_t Addr;
+        bool     IsPrefetchEnable;
+    };
+    using DumpBARArray = std::array<BAR, 6>;
 
 
     /**
@@ -130,6 +158,11 @@ namespace pci
          */
         WithError<uint64_t> ReadBAR( uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_num ) const;
         WithError<uint64_t> ReadBAR( const Device& device, uint8_t bar_num ) const;
+
+        /**
+         * @brief Dump BAR
+        */
+        bool DumpBAR( const Device& device, DumpBARArray& bar_list_out, size_t& bar_dump_len );
 
         /**
          * @brief シングルファンクションデバイスか判定

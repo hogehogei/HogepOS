@@ -158,6 +158,64 @@ WithError<uint64_t> ConfigurationArea::ReadBAR( const Device& device, uint8_t ba
     return ReadBAR( device.Bus, device.Device, device.Function, bar_num );
 }
 
+bool ConfigurationArea::DumpBAR( const Device& device, DumpBARArray& bar_list_out, size_t& bar_dump_len )
+{
+    size_t dump_bar_count = 0;
+    DumpBARArray bar_list;
+
+    for( int bar_num = 0; bar_num < 6; ){
+        auto bar = ReadBAR( device, bar_num );
+        if( bar.error ){
+            return false;
+        }
+
+        BAR bar_out;
+        uint64_t bar_value = bar.value;
+        if( (bar_value & sk_BAR_MASK_IO) == sk_BAR_MASK_IO ){
+            // AddressType = IO
+            bar_out.AddrType = BAR::ADDR_TYPE_IO;
+            bar_out.AddrSize = BAR::ADDR_32BIT;
+            bar_out.Addr = (bar_value & sk_BAR_IO_ADDR_MASK);
+            bar_out.IsPrefetchEnable = false;
+            bar_num += 1;
+        }
+        else {
+            // AddressType = memory
+            bar_out.AddrType = BAR::ADDR_TYPE_MEMORY;
+            uint32_t memory_type = bar_value & sk_BAR_MASK_MEMORY_TYPE;
+            if( memory_type == sk_BAR_MEMORY_TYPE_32BIT ){
+                bar_out.AddrSize = BAR::ADDR_32BIT;
+                bar_num += 1;
+            }
+            else if( memory_type == sk_BAR_MEMORY_TYPE_64BIT ){
+                bar_out.AddrSize = BAR::ADDR_64BIT;
+                bar_num += 2;
+            }
+            else {
+                // 1MB以下のアドレスには未対応
+                return false;
+            }
+
+            if( (bar_value & sk_BAR_MASK_PREFETCH_ENABLE) == sk_BAR_MASK_PREFETCH_ENABLE ){
+                bar_out.IsPrefetchEnable = true;
+            }
+            else {
+                bar_out.IsPrefetchEnable = false;
+            }
+
+            bar_out.Addr = (bar_value & sk_BAR_IO_ADDR_MASK);
+        }
+
+        bar_list[dump_bar_count] = bar_out;
+        ++dump_bar_count;
+    }
+
+    bar_list_out = bar_list;
+    bar_dump_len = dump_bar_count;
+
+    return true;
+}
+
 bool ConfigurationArea::IsSingleFunctionDevice( uint8_t header_type ) const
 {
     return (header_type & 0x80u) == 0;
