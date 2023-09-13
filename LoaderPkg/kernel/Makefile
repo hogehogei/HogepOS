@@ -1,5 +1,5 @@
 TARGET	=	kernel.elf
-CPPSRCS	=	$(wildcard *.cpp usb/*.cpp usb/classdriver/*.cpp usb/xhci/*.cpp)
+CPPSRCS	=	$(wildcard *.cpp usb/*.cpp usb/classdriver/*.cpp usb/xhci/*.cpp driver/e1000e/*.cpp)
 CSRCS   =   $(wildcard *.c)
 ASMSRCS =   $(wildcard *.asm)
 CPPOBJS	=	$(CPPSRCS:.cpp=.o)

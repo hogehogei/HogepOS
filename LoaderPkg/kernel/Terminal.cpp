@@ -6,6 +6,8 @@
 #include "Font.hpp"
 #include "Task.hpp"
 
+#include "driver/e1000e/e1000e.hpp"
+
 //
 // static variables
 //
@@ -17,6 +19,8 @@ static const char* sk_BarDumpAddrSize[] = {
     "32bit",
     "64bit"
 };
+
+driver::net::e1000e::Context* s_e1000e_Ctx = nullptr;
 
 
 
@@ -304,6 +308,28 @@ void Terminal::ExecuteLine()
         }
         else {
             Print( "dumpbar command failed.\n" );
+        }
+    }
+    else if( strcmp(cmd, "e1000eisr") == 0 ){
+        pci::Device dev;
+        dev.Bus = 0x00;
+        dev.Device = 0x04;
+        dev.Function = 0x00;
+
+        s_e1000e_Ctx = driver::net::e1000e::Initialize(dev);
+        if( !s_e1000e_Ctx ){
+            Print( "Initialize driver failed.\n" );
+        }
+        else {
+            sprintf( s, "BaseAddr: %016lX\n", s_e1000e_Ctx->BaseAddr );
+            Print(s);
+            driver::net::e1000e::EnableInterrupt( *s_e1000e_Ctx );
+            uint32_t enable_value = driver::net::e1000e::ReadInterrupt( *s_e1000e_Ctx );
+            driver::net::e1000e::DisableInterrupt( *s_e1000e_Ctx );
+            uint32_t disable_value = driver::net::e1000e::ReadInterrupt( *s_e1000e_Ctx );
+
+            sprintf( s, "IntEnable: %08X, IntDisable: %08X\n", enable_value, disable_value );
+            Print(s);
         }
     }
     else if( cmd[0] != '\0' ){
