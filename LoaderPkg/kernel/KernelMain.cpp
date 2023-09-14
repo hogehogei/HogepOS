@@ -112,7 +112,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     InitializeMouse();
     Keyboard::InitializeKeyboard();
 
-#if 1
+#if 0
     const uint64_t taskb_id = TaskManager::Instance().
         NewTask().
         InitContext( TaskB, 45 ).
@@ -164,7 +164,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
             if( active_layer_id == g_TextBoxWindowID ){
                 InputTextWindow(msg->Arg.Keyboard.Key.Ascii());
             }
-#if 1
+#if 0
             else if( active_layer_id == taskb_id ){
                 if( msg->Arg.Keyboard.Key.Ascii() == 's' ){
                     TaskManager::Instance().Sleep( taskb_id );

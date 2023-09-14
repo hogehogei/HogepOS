@@ -8,20 +8,58 @@
 
 #include "driver/e1000e/e1000e.hpp"
 
+
+namespace {
 //
 // static variables
 //
-static const char* sk_BarDumpAddrType[] = {
+const char* sk_BarDumpAddrType[] = {
     "IO",
     "MEM"
 };
-static const char* sk_BarDumpAddrSize[] = {
+const char* sk_BarDumpAddrSize[] = {
     "32bit",
     "64bit"
 };
 
 driver::net::e1000e::Context* s_e1000e_Ctx = nullptr;
+uint8_t s_NetRxBuf[2048];
 
+//
+// static functions
+//
+
+void DumpHex( Terminal* term, const uint8_t* buf, uint32_t len )
+{
+    char s[128];
+    char* ptr = s;
+    for( uint32_t i = 0; i < len; ++i ){
+        int l = sprintf( ptr, "%02X ", buf[i] );
+        ptr += l;
+        if( (i % 16) == 15 ){
+            sprintf( ptr, "\n" );
+            term->Print(s);
+            ptr = s;
+        }
+    }
+
+    if( ptr != s ){
+        sprintf( ptr, "\n" );
+        term->Print(s);
+    }
+}
+
+void DumpStatus( Terminal* term, driver::net::e1000e::Context* ctx )
+{
+    driver::net::e1000e::STATUS status { driver::net::e1000e::RegRead32<driver::net::e1000e::STATUS>(*ctx) };
+    driver::net::e1000e::RDBAL rdbal { driver::net::e1000e::RegRead32<driver::net::e1000e::RDBAL>(*ctx) };
+    driver::net::e1000e::RDBAH rdbah { driver::net::e1000e::RegRead32<driver::net::e1000e::RDBAH>(*ctx) };
+    driver::net::e1000e::RDLEN rdlen { driver::net::e1000e::RegRead32<driver::net::e1000e::RDLEN>(*ctx) };
+    char s[128];
+    sprintf( s, "STATUS: %08X, FD:%d, LU:%d, SPEED:%d, RDBA:%08X%08X, RDLEN:%08X\n", status.Data, status.FD, status.LU, status.SPEED, rdbah.Data, rdbal.Data, rdlen.Data );
+    term->Print(s);
+}
+}
 
 
 TerminalMessageDispacher& TerminalMessageDispacher::Instance()
@@ -310,26 +348,34 @@ void Terminal::ExecuteLine()
             Print( "dumpbar command failed.\n" );
         }
     }
-    else if( strcmp(cmd, "e1000eisr") == 0 ){
+    else if( strcmp(cmd, "e1000etest") == 0 ){
         pci::Device dev;
         dev.Bus = 0x00;
         dev.Device = 0x04;
         dev.Function = 0x00;
 
-        s_e1000e_Ctx = driver::net::e1000e::Initialize(dev);
+        s_e1000e_Ctx = driver::net::e1000e::Context::Initialize(dev);
         if( !s_e1000e_Ctx ){
             Print( "Initialize driver failed.\n" );
+            return;
         }
-        else {
-            sprintf( s, "BaseAddr: %016lX\n", s_e1000e_Ctx->BaseAddr );
-            Print(s);
-            driver::net::e1000e::EnableInterrupt( *s_e1000e_Ctx );
-            uint32_t enable_value = driver::net::e1000e::ReadInterrupt( *s_e1000e_Ctx );
-            driver::net::e1000e::DisableInterrupt( *s_e1000e_Ctx );
-            uint32_t disable_value = driver::net::e1000e::ReadInterrupt( *s_e1000e_Ctx );
 
-            sprintf( s, "IntEnable: %08X, IntDisable: %08X\n", enable_value, disable_value );
-            Print(s);
+        Print( "Driver intiialize OK.\n" );
+        int count = 0;
+        while(1){
+            Task& task = TaskManager::Instance().CurrentTask();
+            std::size_t len = s_e1000e_Ctx->Recv( s_NetRxBuf, sizeof(s_NetRxBuf) );
+            if( len > 0 ){
+                Print( "\n" );
+                DumpHex( this, s_NetRxBuf, len );
+            }
+
+            ++count;
+            //task.Sleep();
+            if( count >= 10000000 ){
+                DumpStatus( this, s_e1000e_Ctx );
+                count = 0;
+            }
         }
     }
     else if( cmd[0] != '\0' ){
@@ -338,3 +384,4 @@ void Terminal::ExecuteLine()
         Print( "\n" );
     }
 }
+
