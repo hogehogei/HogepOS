@@ -12,6 +12,9 @@ namespace {
 alignas(16) driver::net::e1000e::RxDescriptor g_RxDescriptor[driver::net::e1000e::k_RxDescriptorNum];
 alignas(16) uint8_t g_RxBuffer[driver::net::e1000e::k_RxBufferSize * driver::net::e1000e::k_RxDescriptorNum];
 
+alignas(16) driver::net::e1000e::TxDescriptor g_TxDescriptor[driver::net::e1000e::k_TxDescriptorNum];
+alignas(16) uint8_t g_TxBuffer[driver::net::e1000e::k_TxBufferSize * driver::net::e1000e::k_TxDescriptorNum];
+
 //
 // static functions
 //
@@ -67,11 +70,12 @@ Context* Context::Initialize( pci::Device device )
     RegWrite32<CTRL>( *ctx, ctrl );
 
     ctx->InitializeRx();            // 受信処理初期化
+    ctx->InitializeTx();            // 送信処理初期化
     
     return ctx;
 }
 
-int32_t Context::Recv( uint8_t* buffer, std::size_t bufsize )
+int32_t Context::Recv( uint8_t* buffer, std::size_t buf_size )
 {
     RxDescriptor *currRxDesc = &m_RxDescriptor[m_CurrentRxRingIdx];
 
@@ -80,13 +84,13 @@ int32_t Context::Recv( uint8_t* buffer, std::size_t bufsize )
         return 0;
     }
 
-    std::size_t copy_size = std::min<std::size_t>( bufsize, currRxDesc->Length );
-    if( copy_size <= 0 ){
+    std::size_t rxlen = std::min<std::size_t>( buf_size, currRxDesc->Length );
+    if( rxlen <= 0 ){
         return 0;
     }
 
     // 受信バッファから引数のバッファにコピー
-    memcpy( buffer, reinterpret_cast<void*>(currRxDesc->BufferAddr), copy_size );
+    memcpy( buffer, reinterpret_cast<void*>(currRxDesc->BufferAddr), rxlen );
     currRxDesc->Status = 0;
     
     // RDTを次に進める
@@ -94,7 +98,35 @@ int32_t Context::Recv( uint8_t* buffer, std::size_t bufsize )
     RegWrite32<RDT>( *this, rdt );
     m_CurrentRxRingIdx = (m_CurrentRxRingIdx + 1) % k_RxDescriptorNum;
 
-    return copy_size;
+    return rxlen;
+}
+
+int32_t Context::Send( uint8_t* buffer, std::size_t send_size )
+{
+    std::size_t next = (m_CurrentTxRingIdx + 1) % k_TxDescriptorNum;
+    volatile TxDescriptor *currTxDesc = &m_TxDescriptor[m_CurrentTxRingIdx];
+    volatile TxDescriptor *nextTxDesc = &m_TxDescriptor[next];
+    // 次のTxDescriptorが送信中の場合は、送信完了を待つ
+    while( nextTxDesc->Sta == 0 ) ;
+
+    std::size_t txlen = std::min<std::size_t>( send_size, (k_Ether_MTU + k_Ether_HeaderSize + k_Ether_FCS) );
+    if( txlen <= 0 ){
+        return 0;
+    }
+
+    uint8_t* tx_buffer = &m_TxBuffer[m_CurrentTxRingIdx * k_TxBufferSize];
+    memcpy( tx_buffer, reinterpret_cast<void*>(buffer), txlen );
+
+    currTxDesc->BufferAddr = reinterpret_cast<uint64_t>(tx_buffer);
+    currTxDesc->Length = txlen;
+    currTxDesc->Sta = 0;
+
+    // TDTを次に進める
+    m_CurrentTxRingIdx = next;
+    TDT tdt { m_CurrentTxRingIdx };
+    RegWrite32<TDT>( *this, tdt );
+
+    return txlen;
 }
 
 void Context::EnableAutoNegotiation()
@@ -136,7 +168,7 @@ void Context::InitializeRx()
     //RegWrite32<ITR>( *this, itr );
 
     // Receive Descriptor 設定(16byte align)
-    InitializeReceiveDescriptor();
+    InitializeRxDescRing();
     uint64_t addr = reinterpret_cast<uint64_t>(&m_RxDescriptor[0]);
     RDBAL rdbal { static_cast<uint32_t>(addr & 0x00000000FFFFFFFFull) };
     RDBAH rdbah { static_cast<uint32_t>(addr >> 32) };
@@ -162,7 +194,34 @@ void Context::InitializeRx()
     RegWrite32<RCTL>( *this, rctl );
 }
 
-void Context::InitializeReceiveDescriptor()
+void Context::InitializeTx()
+{
+    // Transmitter Descriptor 設定(16byte align)
+    InitializeTxDescRing();
+    uint64_t addr = reinterpret_cast<uint64_t>(&m_TxDescriptor[0]);
+    TDBAL tdbal { static_cast<uint32_t>(addr & 0x00000000FFFFFFFFull) };
+    TDBAH tdbah { static_cast<uint32_t>(addr >> 32) };
+    TDLEN tdlen { sizeof(TxDescriptor) * k_TxDescriptorNum };
+    RegWrite32<TDBAL>( *this, tdbal );
+    RegWrite32<TDBAH>( *this, tdbah );
+    RegWrite32<TDLEN>( *this, tdlen );
+    // TDH, TDT設定
+    m_CurrentRxRingIdx = 0;
+    TDH tdh { m_CurrentTxRingIdx };
+    TDT tdt { k_TxDescriptorNum - 1 };
+    RegWrite32<TDH>( *this, tdh );
+    RegWrite32<TDT>( *this, tdt );
+
+    // TCTL設定、送信有効化
+    TCTL tctl { 0 };
+    tctl.COLD = k_TCTL_CollisionDistanceFullDuplex;       // Collsion distance, datasheet reference value on full-duplex.
+    tctl.CT = k_TCTL_CollisionThreshold;                  // Collsion threshold,  datasheet reference value on full-duplex.
+    tctl.PSP = 1;                                         // Pad short packet enable
+    tctl.EN = 1;                                          // Transmit Enable
+    RegWrite32<TCTL>( *this, tctl );
+}
+
+void Context::InitializeRxDescRing()
 {
     // メモリ確保
     // todo : static 変数からではなく new して確保すること
@@ -173,6 +232,24 @@ void Context::InitializeReceiveDescriptor()
         m_RxDescriptor[i].BufferAddr = reinterpret_cast<uint64_t>(&m_RxBuffer[bufhead]);
         m_RxDescriptor[i].Status = 0;
         m_RxDescriptor[i].Errors = 0;
+    }
+}
+
+void Context::InitializeTxDescRing()
+{
+    // メモリ確保
+    // todo : static 変数からではなく new して確保すること
+    m_TxDescriptor = &g_TxDescriptor[0];
+    m_TxBuffer = &g_TxBuffer[0];
+    for( std::size_t i = 0; i < k_TxDescriptorNum; ++i ){
+        m_TxDescriptor[i].BufferAddr = 0;
+        m_TxDescriptor[i].Length = 0;
+        m_TxDescriptor[i].Cso = 0;
+        m_TxDescriptor[i].Cmd = 0;
+        m_TxDescriptor[i].Sta = 0;
+        m_TxDescriptor[i].Rsv = 0;
+        m_TxDescriptor[i].Css = 0;
+        m_TxDescriptor[i].Special = 0;
     }
 }
 

@@ -14,7 +14,8 @@ namespace e1000e {
 
 constexpr std::size_t k_RxBufferSize = 2048;
 constexpr std::size_t k_RxDescriptorNum = 2400;
-
+constexpr std::size_t k_TxBufferSize = 2048;
+constexpr std::size_t k_TxDescriptorNum = 16;
 
 struct RxDescriptor
 {
@@ -27,9 +28,23 @@ struct RxDescriptor
 }  __attribute__((packed));
 // RxDescriptor ring size(byte) must be multple 128
 static_assert( (sizeof(RxDescriptor) * k_RxDescriptorNum) % 128 == 0 );
-
 constexpr uint8_t k_RDESC_STATUS_DD = 0x01;
 
+struct TxDescriptor
+{
+    uint64_t BufferAddr;
+    uint16_t Length;
+    uint8_t  Cso;
+    uint8_t  Cmd;
+    struct {
+        uint8_t Sta : 4;
+        uint8_t Rsv : 4;
+    }  __attribute__((packed));
+    uint8_t  Css;
+    uint16_t Special;
+}  __attribute__((packed));
+// TxDescriptor ring size(byte) must be multple 128
+static_assert( (sizeof(TxDescriptor) * k_TxDescriptorNum) % 128 == 0 );
 
 /**
  * @brief e1000e ドライバコンテキスト
@@ -44,20 +59,29 @@ public:
     Context( const Context& ) = delete;
     Context& operator=( const Context& ) = delete;
 
-    int32_t Recv( uint8_t* buffer, std::size_t bufsize );
+    int32_t Recv( uint8_t* buffer, std::size_t buf_size );
+    int32_t Send( uint8_t* buffer, std::size_t send_size );
     uint64_t BaseAddr() const { return m_BaseAddr; }
 
 private:
 
     void EnableAutoNegotiation();
     void InitializeRx();
-    void InitializeReceiveDescriptor();
+    void InitializeTx();
+    void InitializeRxDescRing();
+    void InitializeTxDescRing();
 
     uint64_t m_BaseAddr;              //! NICレジスタベースアドレス
-    uint32_t m_CurrentRxRingIdx;      //! 現在の受信リングのドライバ側受信処理済みインデックス
+    uint32_t m_CurrentRxRingIdx;      //! 現在の受信Ringのドライバ側受信処理済みインデックス
+    uint32_t m_CurrentTxRingIdx;      //! 現在の送信Ringのドライバ側受信処理済みインデックス
     RxDescriptor* m_RxDescriptor;     //! 受信ディスクリプタRING
-    uint8_t*      m_RxBuffer;         //! 受信パケットバッファ(BufferSize * DiscriptorNum)
+    uint8_t*      m_RxBuffer;         //! 受信パケットバッファ(RxBufferSize * RxDiscriptorNum)
+    TxDescriptor* m_TxDescriptor;     //! 送信ディスクリプタRING
+    uint8_t*      m_TxBuffer;         //! 送信パケットバッファ(TxBufferSize * TxDiscriptorNum)
 };
+constexpr std::size_t k_Ether_MTU = 1500;
+constexpr std::size_t k_Ether_HeaderSize = 14;
+constexpr std::size_t k_Ether_FCS = 4;
 
 /**
  * @brief 32bitレジスタ書き込み
@@ -251,6 +275,24 @@ struct RDLEN
     uint32_t Data;
 };
 
+struct TDBAL
+{
+    static constexpr uint32_t Addr = 0x00003800;
+    uint32_t Data;
+};
+
+struct TDBAH
+{
+    static constexpr uint32_t Addr = 0x00003804;
+    uint32_t Data;
+};
+
+struct TDLEN
+{
+    static constexpr uint32_t Addr = 0x00003808;
+    uint32_t Data;
+};
+
 union RDH
 {
     static constexpr uint32_t Addr = 0x00002810;
@@ -264,6 +306,26 @@ union RDH
 union RDT
 {
     static constexpr uint32_t Addr = 0x00002818;
+    uint32_t Data;
+    struct {
+        uint32_t Tail : 16;
+        uint32_t Reserved : 16;
+    } __attribute__((packed));
+} __attribute__((packed));
+
+union TDH
+{
+    static constexpr uint32_t Addr = 0x00003810;
+    uint32_t Data;
+    struct {
+        uint32_t Head : 16;
+        uint32_t Reserved : 16;
+    } __attribute__((packed));
+} __attribute__((packed));
+
+union TDT
+{
+    static constexpr uint32_t Addr = 0x00003818;
     uint32_t Data;
     struct {
         uint32_t Tail : 16;
@@ -300,6 +362,26 @@ union RCTL {
         uint32_t Reserved6 : 5;
     } __attribute__((packed));
 } __attribute__((packed));
+
+union TCTL {
+    static constexpr uint32_t Addr = 0x00000400;
+    uint32_t Data;
+    struct {
+        uint32_t Reserved1 : 1;
+        uint32_t EN : 1;
+        uint32_t Reserved2  : 1;
+        uint32_t PSP : 1;
+        uint32_t CT : 8;
+        uint32_t COLD : 10;
+        uint32_t SWXOFF : 1;
+        uint32_t Reserved3 : 1;
+        uint32_t RTLC : 1;
+        uint32_t NRTU : 1;
+        uint32_t Reserved4 : 6;
+    } __attribute__((packed));
+} __attribute__((packed));
+constexpr uint16_t k_TCTL_CollisionDistanceFullDuplex = 0x40;
+constexpr uint8_t  k_TCTL_CollisionThreshold = 0x0F;
 
 void EnableRxInterrupt( const Context& ctx );
 uint32_t ReadInterrupt( const Context& ctx );
