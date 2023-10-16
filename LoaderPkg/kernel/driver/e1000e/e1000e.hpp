@@ -13,7 +13,7 @@ namespace net {
 namespace e1000e {
 
 constexpr std::size_t k_RxBufferSize = 2048;
-constexpr std::size_t k_RxDescriptorNum = 2400;
+constexpr std::size_t k_RxDescriptorNum = 512;
 constexpr std::size_t k_TxBufferSize = 2048;
 constexpr std::size_t k_TxDescriptorNum = 16;
 
@@ -109,28 +109,24 @@ union CTRL {
     uint32_t Data;
     struct {
         uint32_t FD : 1;
-        uint32_t Reserved1 : 2;
-        uint32_t LRST  : 1;
+        uint32_t Reserved1 : 1;
+        uint32_t GIO_MasterDisable : 1;
         uint32_t Reserved2 : 1;
+        uint32_t Reserved3 : 1;
         uint32_t ASDE : 1;
         uint32_t SLU : 1;
-        uint32_t ILOS : 1;
+        uint32_t Reserved4 : 1;
         uint32_t SPEED : 2;
-        uint32_t Reserved3 : 1;
+        uint32_t Reserved5 : 1;
         uint32_t FRCSPD : 1;
         uint32_t FRCDPLX : 1;
-        uint32_t Reserved4 : 5;
-        uint32_t SDP0_DATA : 1;
-        uint32_t SDP1_DATA : 1;
+        uint32_t Reserved6 : 7;
         uint32_t ADVD3WUC : 1;
-        uint32_t EN_PHY_PWR_MGMT : 1;
-        uint32_t SDP0_IODIR : 1;
-        uint32_t SDP1_IODIR : 1;
-        uint32_t Reserved5 : 2;
+        uint32_t Reserved7 : 5;
         uint32_t RST : 1;
         uint32_t RFCE : 1;
         uint32_t TFCE : 1;
-        uint32_t Reserved6 : 1;
+        uint32_t Reserved8 : 1;
         uint32_t VME : 1;
         uint32_t PHY_RST : 1;
     } __attribute__((packed));
@@ -142,17 +138,15 @@ union STATUS {
     struct {
         uint32_t FD : 1;
         uint32_t LU : 1;
-        uint32_t FunctionID  : 2;
+        uint32_t Reserved1 : 2;
         uint32_t TXOFF : 1;
-        uint32_t TBIMODE : 1;
+        uint32_t Reserved2 : 1;
         uint32_t SPEED : 2;
         uint32_t ASDV : 2;
-        uint32_t Reserved1 : 1;
-        uint32_t PCI66 : 1;
-        uint32_t BUS64 : 1;
-        uint32_t PCIX_MODE : 1;
-        uint32_t PCIXSPD : 2;
-        uint32_t Reserved2 : 16;
+        uint32_t PHYRA : 1;
+        uint32_t Reserved3 : 8;
+        uint32_t GIO_MasterEnableStatus : 1;
+        uint32_t Reserved4 : 12;
     } __attribute__((packed));
 } __attribute__((packed));
 
@@ -214,6 +208,36 @@ union IMC {
     } __attribute__((packed));
 } __attribute__((packed));
 
+union ICR {
+    static constexpr uint32_t Addr = 0x000000C0;
+    uint32_t Data;
+    struct {
+        uint32_t TXDW : 1;
+        uint32_t TXQE : 1;
+        uint32_t LSC  : 1;
+        uint32_t Reserved1 : 1;
+        uint32_t RXDMT0 : 1;
+        uint32_t Reserved2 : 1;
+        uint32_t RXO : 1;
+        uint32_t RXT0 : 1;
+        uint32_t Reserved3 : 1;
+        uint32_t MDAC : 1;
+        uint32_t Reserved4 : 5;
+        uint32_t TXD_LOW : 1;
+        uint32_t SRPD : 1;
+        uint32_t ACK : 1;
+        uint32_t MNG : 1;
+        uint32_t Reserved5 : 1;
+        uint32_t RxQ0 : 1;
+        uint32_t RxQ1 : 1;
+        uint32_t TxQ0 : 1;
+        uint32_t TxQ1 : 1;
+        uint32_t Other : 1;
+        uint32_t Reserved6 : 6;
+        uint32_t INT_ASSERTED : 1;
+    } __attribute__((packed));
+} __attribute__((packed));
+
 template <std::size_t N>
 union RAL
 {
@@ -235,7 +259,7 @@ union RAH
     struct {
         uint32_t Mac5 : 8;
         uint32_t Mac6 : 8;
-        uint32_t AS : 2;
+        uint32_t ASEL : 2;
         uint32_t Reserved : 13;
         uint32_t AV : 1;
     } __attribute__((packed));
@@ -346,7 +370,7 @@ union RCTL {
         uint32_t LPE : 1;
         uint32_t LBM : 2;
         uint32_t RDMTS : 2;
-        uint32_t Reserved2 : 2;
+        uint32_t DTYP : 2;
         uint32_t MO : 2;
         uint32_t Reserved3 : 1;
         uint32_t BAM : 1;
@@ -360,7 +384,8 @@ union RCTL {
         uint32_t Reserved5 : 1;
         uint32_t BSEX : 1;
         uint32_t SECRC : 1;
-        uint32_t Reserved6 : 5;
+        uint32_t FLXBUF : 4;
+        uint32_t Reserved6 : 1;
     } __attribute__((packed));
 } __attribute__((packed));
 

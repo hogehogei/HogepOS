@@ -54,6 +54,7 @@ void DumpStatus( Terminal* term, driver::net::e1000e::Context* ctx )
     driver::net::e1000e::RDBAL rdbal { driver::net::e1000e::RegRead32<driver::net::e1000e::RDBAL>(*ctx) };
     driver::net::e1000e::RDBAH rdbah { driver::net::e1000e::RegRead32<driver::net::e1000e::RDBAH>(*ctx) };
     driver::net::e1000e::RDLEN rdlen { driver::net::e1000e::RegRead32<driver::net::e1000e::RDLEN>(*ctx) };
+
     char s[128];
     sprintf( s, "STATUS: %08X, FD:%d, LU:%d, SPEED:%d, RDBA:%08X%08X, RDLEN:%08X, RxInt:%u\n", status.Data, status.FD, status.LU, status.SPEED, rdbah.Data, rdbal.Data, rdlen.Data, g_e1000eRxIntCnt );
     term->Print(s);

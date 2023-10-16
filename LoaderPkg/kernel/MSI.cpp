@@ -179,7 +179,7 @@ Error ConfigureMSIFixedDestination(
 
     uint8_t msi_cap_addr = 0;
     while( !cap.IsLastEntry() ){
-        Log( kDebug, "cap=(%02x), curr=(%02x), next=(%02x)\n", cap.CapabilityID(), cap.CapabilitiesPointer(), cap.NextPointer() );
+        Log( kInfo, "cap=(%02x), curr=(%02x), next=(%02x)\n", cap.CapabilityID(), cap.CapabilitiesPointer(), cap.NextPointer() );
         if( cap.CapabilityID() == k_CapabilityID_MSI ){
             msi_cap_addr = cap.CapabilitiesPointer();
         }
@@ -187,6 +187,8 @@ Error ConfigureMSIFixedDestination(
     }
 
     if( msi_cap_addr == 0 ){
+        Log( kInfo, "Not found valid MSI capability.\n" );
+        ShowMSIConfigurationSpace(dev);
         return MAKE_ERROR( Error::kNotImplemented );
     }
 
@@ -219,15 +221,25 @@ Error ConfigureMSIFixedDestination(
     return MAKE_ERROR( Error::kSuccess );
 }
 
+void ShowMSIConfigurationSpace( const Device& dev )
+{
+    ConfigurationArea& instance = ConfigurationArea::Instance();
+    Log( kInfo, "MSI configuration space \n" );
+    for( int i = 0; i < 16; ++i ){
+        instance.WriteAddress( instance.MakeAddress(dev, i * 4) );
+        Log( kInfo, "(0x%03X): %08X\n", i * 4, instance.ReadData() );
+    }
+}
+
 void ShowMSIRegister( const MSICapability& cap )
 {
     ConfigurationArea& instance = ConfigurationArea::Instance();
     uint8_t capablities_pointer = cap.CapabilitiesPointer();
     
-    Log( kDebug, "MSI capabilities pointer: (%x)\n", capablities_pointer );
+    Log( kInfo, "MSI capabilities pointer: (%x)\n", capablities_pointer );
     for( int i = 0; i < 4; ++i ){
         instance.WriteAddress( instance.MakeAddress(cap.Device(), capablities_pointer + (i*4)) );
-        Log( kDebug, "bit(%02d - %02d): %08X\n", i * 32, i * 32 + 31, instance.ReadData() );
+        Log( kInfo, "bit(%02d - %02d): %08X\n", i * 32, i * 32 + 31, instance.ReadData() );
     }
 }
 

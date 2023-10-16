@@ -110,5 +110,6 @@ namespace pci
         uint8_t vector, 
         uint8_t num_vector_exponent );
 
+    void ShowMSIConfigurationSpace( const Device& dev );
     void ShowMSIRegister( const MSICapability& cap );
 }

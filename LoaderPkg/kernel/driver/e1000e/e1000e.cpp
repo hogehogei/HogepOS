@@ -36,6 +36,7 @@ bool GetBaseAddress( const pci::Device& device, uint64_t& addr )
             if( bar.AddrType == pci::BAR::ADDR_TYPE_MEMORY ){
                 if( bar.Addr != 0 ){
                     baseaddr = bar.Addr;
+                    break;
                 }
             }
         }
@@ -65,26 +66,37 @@ Context* Context::Initialize( pci::Device device )
         return nullptr;
     }
 
-    ctx->m_Device = device;
+    Log( kInfo, "e1000e base address: %016lX\n", ctx->m_BaseAddr );
 
-    ctx->EnableAutoNegotiation();   // AutoNegotiation 有効化
-
-    CTRL ctrl { RegRead32<CTRL>(*ctx) };
-    ctrl.LRST = 0;                  // link reset = Normal
-    ctrl.PHY_RST = 1;               // PHY reset = Normal
-    RegWrite32<CTRL>( *ctx, ctrl );
-
-    ctx->InitializeRx();            // 受信処理初期化
-    ctx->InitializeTx();            // 送信処理初期化
-    
+    // TODO: 複数同じイーサネットアダプタが存在する場合を考慮していない。
     // MSI割り込み設定
-    const uint8_t bsp_local_apic_id =
-      *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
-    pci::ConfigureMSIFixedDestination(
+    Log( kInfo, "Setting ethernet msi interrupts.\n" );
+    const uint8_t bsp_local_apic_id = *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+    Error err = pci::ConfigureMSIFixedDestination(
         device, bsp_local_apic_id,
         pci::MSITriggerMode::k_Level, pci::MSIDeliveryMode::k_Fixed,
         InterruptVector::kE1000E, 0
     );
+    if( err ){
+        return nullptr;
+    }
+
+    ctx->m_Device = device;
+
+    DisableInterrupt(*ctx);
+    ctx->EnableAutoNegotiation();   // AutoNegotiation 有効化
+
+    CTRL ctrl { RegRead32<CTRL>(*ctx) };
+    ctrl.Reserved2 = 1;             // set to 1b, according to datasheet
+    ctrl.RST = 0;                   // link reset = Normal
+    ctrl.PHY_RST = 0;               // PHY reset = Normal
+    RegWrite32<CTRL>( *ctx, ctrl );
+
+    ctx->InitializeRx();            // 受信処理初期化
+    ctx->InitializeTx();            // 送信処理初期化
+
+    // IMS 受信割り込み設定
+    EnableRxInterrupt( *ctx );
 
     return ctx;
 }
@@ -148,7 +160,7 @@ void Context::EnableAutoNegotiation()
     CTRL ctrl { RegRead32<CTRL>(*this) };
     ctrl.FRCSPD = 0;    // Force speed disable, PHY or ASD to set the eth controller speed
     ctrl.FRCDPLX = 0;   // Force duplex disable,  PHY or ASD to set the eth controller speed
-    ctrl.ASDE = 1;      // Auto-Speed detection enable
+    ctrl.ASDE = 0;      // Auto-Speed detection enable, must be set 0 in 82574
     ctrl.SLU = 1;       // Set link up
     RegWrite32<CTRL>( *this, ctrl );
 
@@ -173,12 +185,9 @@ void Context::InitializeRx()
         *addr = 0;
     }
 
-    // IMS 受信割り込み設定
-    EnableRxInterrupt( *this );
-
     // ITR設定
     ITR itr { 0x00000000 };
-    itr.Interval = 500;
+    itr.Interval = 1000;
     RegWrite32<ITR>( *this, itr );
 
     // Receive Descriptor 設定(16byte align)
@@ -202,6 +211,7 @@ void Context::InitializeRx()
     rctl.SBP = 1;           // Store bad packets
     rctl.UPE = 1;           // Unicast promiscuous enable, not filtered
     rctl.MPE = 1;           // Multicast promiscuous enable, not filtered
+    rctl.DTYP = 0;          // legacy descriptor type
     rctl.BAM = 1;           // Broadcast Accept mode, accept broadcast packets
     rctl.BSIZE = 0;         // Receive buffer size = 2048bytes(00b)
     rctl.EN = 1;            // Receiver Enable
@@ -269,6 +279,10 @@ void Context::InitializeTxDescRing()
 
 void EnableRxInterrupt( const Context& ctx )
 {
+    // clear ICR
+    ICR icr_w = {0xFFFFFFFF};
+    RegWrite32<ICR>( *g_e1000e_Ctx, icr_w );
+
     IMS ims { RegRead32<IMS>(ctx) };
     ims.RXT0 = 1;
     ims.RXO = 1;
@@ -291,6 +305,15 @@ void DisableInterrupt( const Context& ctx )
 
 void InterruptHandler()
 {
+    // TODO: 複数同じイーサネットアダプタが存在する場合を考慮していない。
+    if( g_e1000e_Ctx == nullptr ){
+        return;
+    }
+    uint32_t icr = RegRead32<ICR>(*g_e1000e_Ctx);
+
+    ICR icr_w = {0xFFFFFFFF};
+    RegWrite32<ICR>( *g_e1000e_Ctx, icr_w );
+
     ++g_e1000eRxIntCnt;
 }
 

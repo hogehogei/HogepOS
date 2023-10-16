@@ -252,7 +252,7 @@ static void InitEthernetDriver()
         return;
     }
 
-    Log( kError, "Ethernet e1000e driver intiialize OK.\n" );
+    Log( kError, "Ethernet e1000e driver initialize OK.\n" );
 }
 
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config )
