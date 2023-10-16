@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <algorithm>
 #include "e1000e.hpp"
+#include "Global.hpp"
+#include "MSI.hpp"
+#include "PCI.hpp"
 
 namespace {
 // 
@@ -62,6 +65,8 @@ Context* Context::Initialize( pci::Device device )
         return nullptr;
     }
 
+    ctx->m_Device = device;
+
     ctx->EnableAutoNegotiation();   // AutoNegotiation 有効化
 
     CTRL ctrl { RegRead32<CTRL>(*ctx) };
@@ -72,6 +77,15 @@ Context* Context::Initialize( pci::Device device )
     ctx->InitializeRx();            // 受信処理初期化
     ctx->InitializeTx();            // 送信処理初期化
     
+    // MSI割り込み設定
+    const uint8_t bsp_local_apic_id =
+      *reinterpret_cast<const uint32_t*>(0xfee00020) >> 24;
+    pci::ConfigureMSIFixedDestination(
+        device, bsp_local_apic_id,
+        pci::MSITriggerMode::k_Level, pci::MSIDeliveryMode::k_Fixed,
+        InterruptVector::kE1000E, 0
+    );
+
     return ctx;
 }
 
@@ -160,12 +174,12 @@ void Context::InitializeRx()
     }
 
     // IMS 受信割り込み設定
-    //EnableRxInterrupt();
+    EnableRxInterrupt( *this );
 
     // ITR設定
-    //ITR itr { 0x00000000 };
-    //itr.Interval = 500;
-    //RegWrite32<ITR>( *this, itr );
+    ITR itr { 0x00000000 };
+    itr.Interval = 500;
+    RegWrite32<ITR>( *this, itr );
 
     // Receive Descriptor 設定(16byte align)
     InitializeRxDescRing();
@@ -275,7 +289,10 @@ void DisableInterrupt( const Context& ctx )
     RegWrite32<IMC>( ctx, t );
 }
 
-
+void InterruptHandler()
+{
+    ++g_e1000eRxIntCnt;
+}
 
 }
 }

@@ -4,6 +4,7 @@
 #include <array>
 
 #include "usb/xhci/xhci.hpp"
+#include "driver/e1000e/e1000e.hpp"
 
 #include "PCI.hpp"
 #include "ACPI.hpp"
@@ -44,6 +45,8 @@ EXTERN MouseCursor* g_Cursor;
 EXTERN BitmapMemoryManager* g_MemManager;
 
 EXTERN usb::xhci::Controller* g_xHC_Controller;
+EXTERN driver::net::e1000e::Context* g_e1000e_Ctx;
+EXTERN uint32_t g_e1000eRxIntCnt;
 EXTERN LayerManager* g_LayerManager;
 EXTERN ActiveLayer* g_ActiveLayer;
 EXTERN int g_MouseLayerID;

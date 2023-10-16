@@ -25,6 +25,10 @@ void InitializeInterrupt()
                  MakeIDTAttr(DescriptorType::kInterruptGate, 0),
                  reinterpret_cast<uint64_t>(IntHandlerLAPICTimer),
                  cs );
+    SetIDTEntry( g_IDT[InterruptVector::kE1000E],
+                 MakeIDTAttr(DescriptorType::kInterruptGate, 0),
+                 reinterpret_cast<uint64_t>(IntHandlerE1000E),
+                 cs );
     PrintIDTEntry( InterruptVector::kXHCI );
     LoadIDT( sizeof(g_IDT) - 1, reinterpret_cast<uintptr_t>(&g_IDT[0]) );
 }
@@ -40,6 +44,13 @@ __attribute__((interrupt))
 void IntHandlerLAPICTimer( InterruptFrame* frame )
 {
     LAPICTimerOnInterrupt();
+    NotifyEndOfInterrupt();
+}
+
+__attribute__((interrupt))
+void IntHandlerE1000E( InterruptFrame* frame )
+{
+    driver::net::e1000e::InterruptHandler();
     NotifyEndOfInterrupt();
 }
 

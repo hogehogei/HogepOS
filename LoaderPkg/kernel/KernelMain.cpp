@@ -63,6 +63,7 @@ alignas(16) uint64_t s_TaskB_Stack[1024];
 //
 static void SetupMemory();
 static void InitMemoryManager( const MemoryMap* memory_map );
+static void InitEthernetDriver();
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config );
 static void ShowMemoryType( const MemoryMap* memory_map );
 
@@ -111,6 +112,8 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     usb::xhci::Initialize();
     InitializeMouse();
     Keyboard::InitializeKeyboard();
+
+    InitEthernetDriver();
 
 #if 0
     const uint64_t taskb_id = TaskManager::Instance().
@@ -234,6 +237,22 @@ static void InitMemoryManager( const MemoryMap* memory_map )
     }
 
     g_MemManager->SetMemoryRange( FrameID(1), FrameID(available_end / k_BytesPerFrame) );
+}
+
+static void InitEthernetDriver()
+{
+    pci::Device dev;
+    dev.Bus = 0x00;
+    dev.Device = 0x04;
+    dev.Function = 0x00;
+
+    g_e1000e_Ctx = driver::net::e1000e::Context::Initialize(dev);
+    if( g_e1000e_Ctx == nullptr ){
+        Log( kError, "Initialize ethernet e1000e driver failed.\n" );
+        return;
+    }
+
+    Log( kError, "Ethernet e1000e driver intiialize OK.\n" );
 }
 
 static IPixelWriter* GetPixelWriter( const FrameBufferConfig& config )

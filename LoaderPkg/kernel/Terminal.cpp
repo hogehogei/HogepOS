@@ -22,7 +22,6 @@ const char* sk_BarDumpAddrSize[] = {
     "64bit"
 };
 
-driver::net::e1000e::Context* s_e1000e_Ctx = nullptr;
 uint8_t s_NetRxBuf[2048];
 
 //
@@ -56,7 +55,7 @@ void DumpStatus( Terminal* term, driver::net::e1000e::Context* ctx )
     driver::net::e1000e::RDBAH rdbah { driver::net::e1000e::RegRead32<driver::net::e1000e::RDBAH>(*ctx) };
     driver::net::e1000e::RDLEN rdlen { driver::net::e1000e::RegRead32<driver::net::e1000e::RDLEN>(*ctx) };
     char s[128];
-    sprintf( s, "STATUS: %08X, FD:%d, LU:%d, SPEED:%d, RDBA:%08X%08X, RDLEN:%08X\n", status.Data, status.FD, status.LU, status.SPEED, rdbah.Data, rdbal.Data, rdlen.Data );
+    sprintf( s, "STATUS: %08X, FD:%d, LU:%d, SPEED:%d, RDBA:%08X%08X, RDLEN:%08X, RxInt:%u\n", status.Data, status.FD, status.LU, status.SPEED, rdbah.Data, rdbal.Data, rdlen.Data, g_e1000eRxIntCnt );
     term->Print(s);
 }
 }
@@ -286,6 +285,7 @@ void TaskTerminal( uint64_t task_id, int64_t data )
 void Terminal::ExecuteLine()
 {
     char s[64];
+    Task& task = TaskManager::Instance().CurrentTask();
 
     const char* cmd = &m_LineBuf[0];
     char* first_arg = strchr( &m_LineBuf[0], ' ' );
@@ -349,22 +349,15 @@ void Terminal::ExecuteLine()
         }
     }
     else if( strcmp(cmd, "e1000etest") == 0 ){
-        pci::Device dev;
-        dev.Bus = 0x00;
-        dev.Device = 0x04;
-        dev.Function = 0x00;
-
-        s_e1000e_Ctx = driver::net::e1000e::Context::Initialize(dev);
-        if( !s_e1000e_Ctx ){
-            Print( "Initialize driver failed.\n" );
+        if( g_e1000e_Ctx == nullptr ){
+            Print( "e1000e driver not initialized. command execute failed.\n" );
             return;
         }
 
-        Print( "Driver intiialize OK.\n" );
         int count = 0;
         while(1){
             Task& task = TaskManager::Instance().CurrentTask();
-            std::size_t len = s_e1000e_Ctx->Recv( s_NetRxBuf, sizeof(s_NetRxBuf) );
+            std::size_t len = g_e1000e_Ctx->Recv( s_NetRxBuf, sizeof(s_NetRxBuf) );
             if( len > 0 ){
                 Print( "\n" );
                 DumpHex( this, s_NetRxBuf, len );
@@ -373,7 +366,18 @@ void Terminal::ExecuteLine()
             ++count;
             //task.Sleep();
             if( count >= 10000000 ){
-                DumpStatus( this, s_e1000e_Ctx );
+                DumpStatus( this, g_e1000e_Ctx );
+                RectAngle<int> draw_area{ CalcCursorPos(), {8*2, 16} };
+                draw_area.pos  = TopLevelWindow::k_TopLeftMargin;
+                draw_area.size = m_Window->InnerSize();
+
+                Message msg = MakeLayerMessage(
+                    task.ID(), this->GetLayerID(), LayerOperation::DrawArea, draw_area
+                );
+                __asm__("cli");
+                TaskManager::Instance().SendMessage( 1, msg );
+                __asm__("sti");
+
                 count = 0;
             }
         }

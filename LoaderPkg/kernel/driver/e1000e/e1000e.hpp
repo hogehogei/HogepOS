@@ -71,6 +71,7 @@ private:
     void InitializeRxDescRing();
     void InitializeTxDescRing();
 
+    pci::Device m_Device;             //! PCIデバイス番号
     uint64_t m_BaseAddr;              //! NICレジスタベースアドレス
     uint32_t m_CurrentRxRingIdx;      //! 現在の受信Ringのドライバ側受信処理済みインデックス
     uint32_t m_CurrentTxRingIdx;      //! 現在の送信Ringのドライバ側受信処理済みインデックス
@@ -386,6 +387,7 @@ constexpr uint8_t  k_TCTL_CollisionThreshold = 0x0F;
 void EnableRxInterrupt( const Context& ctx );
 uint32_t ReadInterrupt( const Context& ctx );
 void DisableInterrupt( const Context& ctx );
+void InterruptHandler();
 
 }
 }

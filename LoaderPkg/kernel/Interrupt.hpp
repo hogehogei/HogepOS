@@ -43,6 +43,7 @@ public:
     enum Number {
         kXHCI = 0x40,
         kAPICTimer = 0x41,
+        kE1000E = 0x42,
     };
 };
 
@@ -79,6 +80,9 @@ void IntHandlerXHCI( InterruptFrame* frame );
 
 __attribute__((interrupt))
 void IntHandlerLAPICTimer( InterruptFrame* frame );
+
+__attribute__((interrupt))
+void IntHandlerE1000E( InterruptFrame* frame );
 
 void NotifyEndOfInterrupt();
 void SetIDTEntry( InterruptDescriptor& desc, 
