@@ -101,14 +101,28 @@ EFI_STATUS EFIAPI UefiMain( EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_ta
         }
     }
 
+    // Open volume file
+    VOID* volume_image;
+    EFI_FILE_PROTOCOL* volume_file;
+    status = root_dir->Open(
+        root_dir, &volume_file, L"\\fat_disk",
+        EFI_FILE_MODE_READ, 0);
+    if( status == EFI_SUCCESS ){
+        status = ReadFile(volume_file, &volume_image);
+        if( EFI_ERROR(status) ){
+            Print(L"failed to read volume file: %r\n", status);
+            Halt();
+        }
+    }
+
     Print( L"Jump to entry point.\n" );
     StopBootServices( image_handle, memmap );
 
     UINT64 entry_addr = *(UINT64*)(kernel_base_addr + 24);
-    typedef void EntryPointType( const FrameBufferConfig*, const MemoryMap*, const VOID* );
+    typedef void EntryPointType( const FrameBufferConfig*, const MemoryMap*, const VOID*, VOID* );
     EntryPointType* entry_point = (EntryPointType*)entry_addr;
 
-    entry_point( &config, &memmap, acpi_table );
+    entry_point( &config, &memmap, acpi_table, volume_image );
 
     while( 1 );
     return EFI_SUCCESS;
@@ -378,6 +392,11 @@ static void CopyLoadSegments( Elf64_Ehdr* ehdr )
     }
 }
 
+static void ReadImage()
+{
+    EFI_FILE_PROTOCOL* volume_file;
+    status = root_dir->Open
+}
 
 static void StopBootServices( EFI_HANDLE image_handle, MemoryMap memmap )
 {

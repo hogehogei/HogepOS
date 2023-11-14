@@ -77,10 +77,13 @@ static void DrawTextCursor( bool visible );
 
 extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in, 
                                     const MemoryMap* memory_map_in,
-                                    const void* acpi_table )
+                                    const void* acpi_table, 
+                                    void* volume_image )
 {
     FrameBufferConfig config( *config_in );
     MemoryMap memory_map( *memory_map_in );
+
+    g_VolumeImage = volume_image;
 
     SetupMemory();
     acpi::Initialize( *reinterpret_cast<const acpi::RSDP*>(acpi_table) );
@@ -128,6 +131,22 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     Task& main_task = TaskManager::Instance().CurrentTask();
     //TimerManager::Instance().AddTimer( Timer(100, 1) );
     //TimerManager::Instance().AddTimer( Timer(200, -1) );
+
+    // for test dump image
+    const uint8_t* p = reinterpret_cast<uint8_t*>(g_VolumeImage);
+    for( int i = 0; i < 16; ++i ){
+        Printk("%04x:", i * 16 );
+        for( int j = 0; j < 8; ++j ){
+            Printk( " %02X", *p );
+            ++p;
+        }
+        Printk(" ");
+        for( int j = 0; j < 8; ++j ){
+            Printk( " %02X", *p );
+            ++p;
+        }
+        Printk("\n");
+    }
 
     while(1){
         ++s_Count;

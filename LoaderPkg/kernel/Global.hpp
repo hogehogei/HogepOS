@@ -39,6 +39,7 @@ EXTERN caddr_t g_ProgramBreakEnd;
 #endif
 
 #ifdef __cplusplus
+EXTERN void* g_VolumeImage;
 EXTERN IPixelWriter* g_PixelWriter;
 EXTERN Console* g_Console;
 EXTERN MouseCursor* g_Cursor;
