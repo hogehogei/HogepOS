@@ -4,7 +4,6 @@
 #include <cstddef>
 
 #include "error.hpp"
-#include "file.hpp"
 
 namespace fat {
 
@@ -73,7 +72,7 @@ class VolumeOperator
 {
 public:
 
-    VolumeOperator( void* volume_image )
+    VolumeOperator( void* volume_image );
     ~VolumeOperator() = default;
     VolumeOperator( VolumeOperator& ) = delete;
     VolumeOperator& operator=( VolumeOperator& ) = delete;
@@ -83,7 +82,8 @@ public:
     {
         return reinterpret_cast<T*>(getClusterAddr(cluster));
     }
-
+    
+    const BPB* GetBPB() const;
     uint32_t GetEntriesPerCluster() const;
 
 private:
@@ -91,6 +91,8 @@ private:
     uintptr_t getClusterAddr( uint32_t cluster ) const;
 
     BPB* m_BPB;
-}
+};
+
+void ReadName( const DirectoryEntry& entry, char* base, char* ext );
 
 }    // namespace fat

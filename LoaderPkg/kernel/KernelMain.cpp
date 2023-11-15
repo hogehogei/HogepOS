@@ -11,6 +11,7 @@
 #include "PCI.hpp"
 #include "MSI.hpp"
 #include "ACPI.hpp"
+#include "FAT.hpp"
 #include "Interrupt.hpp"
 #include "Mouse.hpp"
 #include "MouseCursor.hpp"
@@ -83,7 +84,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     FrameBufferConfig config( *config_in );
     MemoryMap memory_map( *memory_map_in );
 
-    g_VolumeImage = volume_image;
+
 
     SetupMemory();
     acpi::Initialize( *reinterpret_cast<const acpi::RSDP*>(acpi_table) );
@@ -99,6 +100,8 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     InitMemoryManager( &memory_map );
     InitializeHeap( *g_MemManager );
     SetLogLevel( kInfo );
+
+    g_AppVolume = new fat::VolumeOperator(volume_image);
 
     g_MousePosition = Vector2<int>{ 100, 100 };
     g_ScreenSize = Vector2<int>{ static_cast<int>(config.HorizontalResolution), static_cast<int>(config.VerticalResolution) };
@@ -133,7 +136,7 @@ extern "C" void KernelMainNewStack( const FrameBufferConfig* config_in,
     //TimerManager::Instance().AddTimer( Timer(200, -1) );
 
     // for test dump image
-    const uint8_t* p = reinterpret_cast<uint8_t*>(g_VolumeImage);
+    const uint8_t* p = reinterpret_cast<uint8_t*>(volume_image);
     for( int i = 0; i < 16; ++i ){
         Printk("%04x:", i * 16 );
         for( int j = 0; j < 8; ++j ){

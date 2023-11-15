@@ -5,6 +5,7 @@
 #include "Graphic.hpp"
 #include "Font.hpp"
 #include "Task.hpp"
+#include "FAT.hpp"
 
 #include "driver/e1000e/e1000e.hpp"
 
@@ -381,6 +382,38 @@ void Terminal::ExecuteLine()
 
                 count = 0;
             }
+        }
+    }
+    else if( strcmp(cmd, "ls") == 0 ){
+        auto root_dir_entries = g_AppVolume->GetSectorByCluster<fat::DirectoryEntry>( g_AppVolume->GetBPB()->RootCluster );
+        auto entries_per_cluster = g_AppVolume->GetEntriesPerCluster();
+
+        char debug[64];
+        sprintf( debug, "RootDirEnt=%016X, EntPerCluster=%d\n", root_dir_entries, entries_per_cluster );
+        Print(debug);
+
+        char base[9], ext[4];
+        char s[64];
+        for( int i = 0; i < entries_per_cluster; ++i ){
+            fat::ReadName( root_dir_entries[i], base, ext );
+            if( base[0] == 0x00 ){
+                break;
+            }
+            else if( static_cast<uint8_t>(base[0]) == 0xE5 ){
+                continue;
+            }
+            else if( root_dir_entries[i].Attr == fat::Attribute::kLongName ){
+                continue;
+            }
+
+            if( ext[0] ){
+                sprintf( s, "%s.%s\n", base, ext );
+            }
+            else {
+                sprintf( s, "%s\n", base );
+            }
+
+            Print(s);
         }
     }
     else if( cmd[0] != '\0' ){

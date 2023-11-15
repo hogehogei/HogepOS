@@ -8,6 +8,7 @@
 
 #include "PCI.hpp"
 #include "ACPI.hpp"
+#include "FAT.hpp"
 #include "Interrupt.hpp"
 #include "Event.hpp"
 #include "RingBuffer.hpp"
@@ -39,7 +40,7 @@ EXTERN caddr_t g_ProgramBreakEnd;
 #endif
 
 #ifdef __cplusplus
-EXTERN void* g_VolumeImage;
+EXTERN fat::VolumeOperator* g_AppVolume;
 EXTERN IPixelWriter* g_PixelWriter;
 EXTERN Console* g_Console;
 EXTERN MouseCursor* g_Cursor;

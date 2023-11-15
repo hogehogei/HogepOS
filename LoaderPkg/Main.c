@@ -36,6 +36,7 @@ static const CHAR16* GetMemoryTypeUnicode( EFI_MEMORY_TYPE type );
 static EFI_STATUS OpenRootDir( EFI_HANDLE image_handle, EFI_FILE_PROTOCOL** root );
 static EFI_STATUS OpenGOP( EFI_HANDLE image_handle, EFI_GRAPHICS_OUTPUT_PROTOCOL** gop );
 static const CHAR16* GetPixelFormatUnicode( EFI_GRAPHICS_PIXEL_FORMAT fmt );
+static EFI_STATUS ReadFile( EFI_FILE_PROTOCOL* file, VOID** buffer );
 static EFI_PHYSICAL_ADDRESS ReadKernel( EFI_FILE_PROTOCOL* root_dir );
 static void CalcLoadAddressRange( Elf64_Ehdr* ehdr, UINT64* first, UINT64* last );
 static void CopyLoadSegments( Elf64_Ehdr* ehdr );
@@ -102,13 +103,13 @@ EFI_STATUS EFIAPI UefiMain( EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_ta
     }
 
     // Open volume file
-    VOID* volume_image;
+    VOID* volume_image = NULL;
     EFI_FILE_PROTOCOL* volume_file;
     status = root_dir->Open(
         root_dir, &volume_file, L"\\fat_disk",
         EFI_FILE_MODE_READ, 0);
     if( status == EFI_SUCCESS ){
-        status = ReadFile(volume_file, &volume_image);
+        status = ReadFile( volume_file, &volume_image );
         if( EFI_ERROR(status) ){
             Print(L"failed to read volume file: %r\n", status);
             Halt();
@@ -308,6 +309,31 @@ static const CHAR16* GetPixelFormatUnicode( EFI_GRAPHICS_PIXEL_FORMAT fmt )
             return L"InvalidPixelFormat";
     }
 }
+
+static EFI_STATUS ReadFile( EFI_FILE_PROTOCOL* file, VOID** buffer )
+{
+    EFI_STATUS status;
+
+    UINTN file_info_size = sizeof(EFI_FILE_INFO) + sizeof(CHAR16) * 12;
+    UINT8 file_info_buffer[file_info_size];
+    status = file->GetInfo(
+        file, &gEfiFileInfoGuid,
+        &file_info_size, file_info_buffer);
+    if( EFI_ERROR(status) ){
+        return status;
+    }
+
+    EFI_FILE_INFO* file_info = (EFI_FILE_INFO*)file_info_buffer;
+    UINTN file_size = file_info->FileSize;
+
+    status = gBS->AllocatePool(EfiLoaderData, file_size, buffer);
+    if( EFI_ERROR(status) ){
+        return status;
+    }
+
+    return file->Read(file, &file_size, *buffer);
+}
+
 static EFI_PHYSICAL_ADDRESS ReadKernel( EFI_FILE_PROTOCOL* root_dir )
 {
     EFI_STATUS status;
@@ -316,22 +342,8 @@ static EFI_PHYSICAL_ADDRESS ReadKernel( EFI_FILE_PROTOCOL* root_dir )
     status = root_dir->Open( root_dir, &kernel_file, L"\\kernel.elf", EFI_FILE_MODE_READ, 0 );
     HaltOnError( status, L"Failed to open kernel file." );
 
-    UINTN file_info_size = sizeof(EFI_FILE_INFO) + sizeof(CHAR16) * 12;
-    UINT8 file_info_buffer[file_info_size];
-    status = kernel_file->GetInfo( kernel_file, 
-                                   &gEfiFileInfoGuid,
-                                   &file_info_size, 
-                                   file_info_buffer );
-    HaltOnError( status, L"Failed to get file info." );
-    
-    // まずは一時領域にカーネルファイルを読み込む
-    EFI_FILE_INFO* file_info = (EFI_FILE_INFO*)file_info_buffer;
-    UINTN kernel_file_size = file_info->FileSize;
-
-    VOID* kernel_buffer;
-    status = gBS->AllocatePool( EfiLoaderData, kernel_file_size, &kernel_buffer );
-    HaltOnError( status, L"Failed to allocate pool" );
-    status = kernel_file->Read( kernel_file, &kernel_file_size, kernel_buffer );
+    VOID* kernel_buffer = NULL;
+    status = ReadFile( kernel_file, &kernel_buffer );
     HaltOnError( status, L"Failed to read kernel file." );
 
     // カーネルコピー先領域確保
@@ -390,12 +402,6 @@ static void CopyLoadSegments( Elf64_Ehdr* ehdr )
         UINTN remain_bytes = phdr[i].p_memsz - phdr[i].p_filesz;
         SetMem( (VOID*)(phdr[i].p_vaddr + phdr[i].p_filesz), remain_bytes, 0 );
     }
-}
-
-static void ReadImage()
-{
-    EFI_FILE_PROTOCOL* volume_file;
-    status = root_dir->Open
 }
 
 static void StopBootServices( EFI_HANDLE image_handle, MemoryMap memmap )
